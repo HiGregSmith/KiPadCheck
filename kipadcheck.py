@@ -24,10 +24,8 @@
 # Type "import kipadcheck".
 #
 # ABOUT:
-#    This python script provides additional basic DRC checks to KiCAD
-#    and lists to make tweaking pads for stencil creation easier.
-#    It adds a menu item to "Tools" called kipadcheck.
-#
+
+# This python script provides additional basic DRC checks to KiCAD and lists to make tweaking pads easier for drill compliance, silk compliance, and stencil creation. It adds a menu item to "Tools" called kipadcheck That brings up a dialog for control.#
 # THERE ARE BUGS:
 #
 # Preliminary support is included for more than 2 layers.
@@ -219,155 +217,8 @@ import random # for testing
 
 
 
-class GeomPoint:
-    """Functions for handling geometry points for basic DRC checks (distance, dot, normal)"""
-    atts=('x','y','z')
-    d=[]
-    # Possible functions to implement for point class: 
-    # __add__(), __radd__(), __iadd__(), __mul__(), __rmul__() and __imul__()
-    def __init__(self, x=0, y=0):
-        self.d=[x,y]
-    def __getitem__(self,index):
-        return self.d[index]
-    def __getattr__(self,name):
-        #print "name=",name, self.atts.index(name), self.d[1]
-        try:
-            return self.d[self.atts.index(name)] #self.d[GeomPoint.atts.index(name)]
-        except: #KeyError
-            raise AttributeError
 
-    def __repr__(self):
-        return str((self.x,self.y))
-    def __str__(self):
-        return str((self.x,self.y))
-    def __eq__(self, other):
-        return self.__class__(self.x == other.x and self.y == other.y)
-    def __add__(self,other):
-        return self.__class__(self.x+other.x,self.y+other.y)
-    def __sub__(self,other):
-        return self.__class__(self.x-other.x,self.y-other.y)
-    def from_wxPoint(self,wxpoint):
-        """create a GeomPoint object from wxpoint object"""
-        return self.__class__(wxpoint.x,wxpoint.y)
-    def dot(self,w):
-        """return the dot product of point and w"""
-        return self.x*w.x + self.y*w.y	
-    def distance2(self,w):
-        """return the distance squared between point and w"""
-        return abs((w-self).dot((w-self)))
-    def distance(self,w):
-        """return the distance between point and w"""
-        p = self - w
-        return (p.x*p.x+p.y*p.y)**(1/2.0)
-    def scale(self,factor):
-        """ scale (multiply) the point x and y by a specific factor"""
-        # self.x *= factor
-        # self.y *= factor
-        return self.__class__(float(self.x)*factor,float(self.y)*factor)
-
-    def projection_axis(self, w):
-        """Project the point onto axis specified by w.
-           w must be a vector on the unit circle (for example: (1,0) or (0,1)
-           to project on the x axis or y axis, respectively)"""
-        # Consider the line extending the segment,
-        # parameterized as v + t (w - v).
-        # We find projection of point p onto the line. 
-        # It falls where t = [(p-v) . (w-v)] / |w-v|^2
-        t = self.dot(w);
-        return t
-        
-    # v,w are points defining the line segment
-    def projection_line(self, v, w):
-        """project point onto the line segment v,w"""
-        p = self
-        # Return minimum distance between line segment vw and point p
-        # Consider the line extending the segment,
-        # parameterized as v + t (w - v).
-        # We find projection of point p onto the line. 
-        # It falls where t = [(p-v) . (w-v)] / |w-v|^2
-        # We clamp t from [0,1] to handle points outside the segment vw.
-        # if w.x == v.x and w.y == v.y:
-            # return self.distance(w);   # v == w case
-
-        #print "divisor=",w.distance(v)
-        t = max(0, min(1, (p - v).dot(w - v) / w.distance(v)));
-        # SavePrint = "L2 %d; t %.3f"%(L2,t)
-        
-        #t = max(0, min(1, (v - p).dot(v - w) / float(L2)));
-        
-        # projection:
-        # (self - v) dot (w - v) / 
-        # ( (v - w) dot (v- w))
-
-        projection = v + (w-v).scale(t);  # Projection falls on the segment
-        #print "t=",t,"proj=",projection
-        return projection
-    
-    def normal(self, w):
-        """NOT FINISHED"""
-        """get normals of line formed with point w"""
-        """This is the left normal if w is clockwise of self"""
-        """This is the right normal if w is counter-clockwise of self"""
-        w.x - self.x, 
-        w.y - self.y
-    
-    # var normals:Vector.<Vector2d> = new Vector.<Vector2d>
-    # for (var i:int = 1; i < dots.length-1; i++) 
-    # {
-        # var currentNormal:Vector2d = new Vector2d(
-            # dots[i + 1].x - dots[i].x, 
-            # dots[i + 1].y - dots[i].y
-        # ).normL //left normals
-        # normals.push(currentNormal);
-    # }
-    # normals.push(
-        # new Vector2d(
-            # dots[1].x - dots[dots.length-1].x, 
-            # dots[1].y - dots[dots.length-1].y
-        # ).normL
-    # )
-    # return normals;
-
-    def mindistance2(self, v, w):
-        """Return minimum distance squared between point and line segment v,w.
-           Perhaps obviously, this is faster than mindistance because sqrt()
-           is not called."""
-        L2 = v.distance2(w)
-        #if w.x == v.x and w.y == v.y:
-        if L2 == 0.0:
-            return self.distance2(w);   # v == w case
-        return self.distance2(self.projection_line(v,w))        
-        
-    def mindistance(self, v, w):
-        """return minimum distance squared between point and line segment v,w"""
-        L2 = w.distance2(v)
-        #if w.x == v.x and w.y == v.y:
-        if L2 == 0.0:
-            return self.distance(w);   # v == w case
-        return self.distance(self.projection_line(v,w))
-        
-        # L2 = v.distance2(w);  # i.e. |w-v|^2 -  avoid a sqrt
-        # if (L2 == 0.0):
-            # return p.distance(w);   # v == w case
-        # return p.distance(self.projection_line(v,w));
-        
-        # p = self
-        # # Return minimum distance between line segment vw and point p
-        # L2 = self.distance2(v, w);  # i.e. |w-v|^2 -  avoid a sqrt
-        # if (L2 == 0.0):
-            # return p.distance(v);   # v == w case
-        # # Consider the line extending the segment,
-        # # parameterized as v + t (w - v).
-        # # We find projection of point p onto the line. 
-        # # It falls where t = [(p-v) . (w-v)] / |w-v|^2
-        # # We clamp t from [0,1] to handle points outside the segment vw.
-        # t = max(0, min(1, (p - v).dot(w - v) / float(L2)));
-        # # SavePrint = "L2 %d; t %.3f"%(L2,t)
-        
-        # #t = max(0, min(1, (v - p).dot(v - w) / float(L2)));
-        # projection = v + (w-v).scale(t);  # Projection falls on the segment
-        # return p.distance(projection);
-            
+ 
     # ds = self._board.GetDesignSettings() 
     # ugly. exposes a public member not via an accessor method
     # nc = ds.m_NetClasses
@@ -402,7 +253,8 @@ class GeomPoint:
 
 class wxPointUtil:
     """A variety of utilities and geometric calculations for
-       operating on wxPoint objects."""
+       operating on wxPoint objects. Will work on other objects with
+       x,y attributes"""
        
     atts=('x','y','z')
     d=[]
@@ -422,7 +274,6 @@ class wxPointUtil:
         wvx = w.x - v.x
         wvy = w.y - v.y
         return wvx*wvx+wvy*wvy #abs(wxPointUtil.dot(sub,sub))
-        #return (w.x - v.x)*(w.x - v.x)+(w.y - v.y)*(w.y - v.y)
     @staticmethod
     def distance(v,w):
         """return the distance between point and w"""
@@ -1447,38 +1298,6 @@ class KiPadCheck( pcbnew.ActionPlugin ):
     # Future categorization:
     # http://www.indium.com/blog/solder-powder-types-3-4-5-6-7.php
 
-    colornames = {
-     pcbnew.BLACK: 'BLACK', 
-     pcbnew.DARKDARKGRAY: 'DARKSLATEGRAY', # 'DARKDARKGRAY', 
-     pcbnew.DARKGRAY: 'DARKGRAY', 
-     pcbnew.LIGHTGRAY: 'LIGHTGRAY', 
-     pcbnew.WHITE: 'WHITE', 
-     pcbnew.LIGHTYELLOW: 'LIGHTYELLOW', 
-     pcbnew.DARKBLUE: 'DARKBLUE', 
-     pcbnew.DARKGREEN: 'DARKGREEN', 
-     pcbnew.DARKCYAN: 'DARKCYAN', 
-     pcbnew.DARKRED: 'DARKRED', 
-     pcbnew.DARKMAGENTA: 'DARKMAGENTA', 
-     pcbnew.DARKBROWN: 'MAROON', # 'DARKBROWN', 
-     pcbnew.BLUE: 'BLUE', 
-     pcbnew.GREEN: 'GREEN', 
-     pcbnew.CYAN: 'CYAN', 
-     pcbnew.RED: 'RED', 
-     pcbnew.MAGENTA: 'MAGENTA', 
-     pcbnew.BROWN: 'BROWN', 
-     pcbnew.LIGHTBLUE: 'LIGHTBLUE', 
-     pcbnew.LIGHTGREEN: 'LIGHTGREEN', 
-     pcbnew.LIGHTCYAN: 'LIGHTCYAN', 
-     pcbnew.LIGHTRED: 'INDIANRED', # 'LIGHTRED', 
-     pcbnew.LIGHTMAGENTA: 'LIGHTPINK', # 'LIGHTMAGENTA', 
-     pcbnew.YELLOW: 'YELLOW', 
-     pcbnew.PUREBLUE: 'MEDIUMBLUE', # 'PUREBLUE', 
-     pcbnew.PUREGREEN: 'LAWNGREEN', # 'PUREGREEN', 
-     pcbnew.PURECYAN: 'DARKTURQUOISE', # 'PURECYAN', 
-     pcbnew.PURERED: 'FIREBRICK', # 'PURERED', 
-     pcbnew.PUREMAGENTA: 'DARKORCHID', # PUREMAGENTA', 
-     pcbnew.PUREYELLOW: 'KHAKI', # PUREYELLOW' 
-    }
 
     padshapes = {
         pcbnew.PAD_SHAPE_CIRCLE: "CIRC",
@@ -1509,16 +1328,10 @@ class KiPadCheck( pcbnew.ActionPlugin ):
     _layer_num_by_name = {}
     """Dicationary of layer numbers indicated by the given name."""
     _board = None
-    """The current board loaded into KiCad (shortcut for pcbnew.GetBoard())"""
-    
-    def in2iu(self,inches):
-        """Convert inches to internal units."""
-        iu = inches * 1000.0 * pcbnew.IU_PER_MILS  # inches *25.4*1000000
-        return iu;
-        
+    """The current board loaded into KiCad (shortcut for pcbnew.GetBoard())"""        
 
     def CreateLabeledEntry(self,parent,label="",name="",value=0.0):
-        """Create a Double Spin Control with label."""
+        """Create a wx Double Spin Control with label for the GUI."""
         #p = wx.Panel(parent,wx.ID_ANY)
         p = wx.StaticBox(parent,label=label)#,size=wx.Size(300,100))
         #sb1 = wx.StaticBox(panelbottom,label="mils1",size=wx.Size(300,300))
@@ -1553,7 +1366,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
            functions."""
         self._consoleText.AppendText("Starting MenuItemPadInfo()...\n")
 
-        windowName = 'Pads'
+        windowName = 'KiPadCheck'
 
         padsWindow = wx.FindWindowByLabel(windowName,parent=self._pcbnewWindow)
         if padsWindow is not None:
@@ -1585,10 +1398,13 @@ class KiPadCheck( pcbnew.ActionPlugin ):
             
             sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mil) Via to Via spacing","vv",12.0))
             sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mil) Via to Track spacing","vt",12.0))
-            sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mm) Silk to Pad spacing","sp",0.0))
-            sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mm) Outline Thickness","ot",0.02))
-            sizerbottom.Add(self.CreateLabeledCheckBox(panelbottom,"Silk Zero-Thickness Overlap Pad Only","oo"))
-            
+            sp = self.CreateLabeledEntry(panelbottom,"(mm) Silk to Pad spacing","sp",0.0)
+            sp.Disable()
+            sizerbottom.Add(sp)
+            sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mm) Outline Thickness","ot",0.00))
+            cb = self.CreateLabeledCheckBox(panelbottom,"Silk Slow Check","sc")
+            sizerbottom.Add(cb)
+            cb.Disable()
             #wx.CheckBox(panelbottom,wx.ID_ANY,name='oo', pos=wx.Point(300,300), initial=True,label="hello")
             #sizerbottom.Add(sl)
             
@@ -2029,27 +1845,28 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         # # uses SAT algorithm. Does not generate the resulting intersection.
         # # only determines if they are disjoint.
     def test(self):
-        """Testing GeomPoint projection_axis. Printing values to Python console."""
+        """Testing wxPointUtil projection_axis.
+        Printing values to Python console."""
         points=[]
         for i in range(1000):
-            points.append(GeomPoint(random.randrange(1000),random.randrange(1000)))
+            points.append(pcbnew.wxPoint(random.randrange(1000),random.randrange(1000)))
         
-        xa = GeomPoint(1,0)
-        ya = GeomPoint(0,1)
+        xa = pcbnew.wxPoint(1,0)
+        ya = pcbnew.wxPoint(0,1)
         for p in points:
             print p, p.projection_axis(xa),p.projection_axis(ya)
             
         # the shortest of the distance between point A and line segment CD, B and CD, C and AB or D and AB. So it's a fairly simple "distance between 
 
-        p1 = (Point(0.235, 0.305), Point(0.485, 0.305), Point(0.235, 0.495), Point(0.485, 0.495))
-        p2 = (Point(-0.125, 0.405), Point(0.125, 0.405), Point(-0.125, 0.595), Point(0.125, 0.595))
+        p1 = (pcbnew.wxPoint(0.235, 0.305), pcbnew.wxPoint(0.485, 0.305), pcbnew.wxPoint(0.235, 0.495), pcbnew.wxPoint(0.485, 0.495))
+        p2 = (pcbnew.wxPoint(-0.125, 0.405), pcbnew.wxPoint(0.125, 0.405), pcbnew.wxPoint(-0.125, 0.595), pcbnew.wxPoint(0.125, 0.595))
         r = wxPointUtil.check_polygons_intersecting(p1, p2)
         print(r)
-        p1 = [Point(0, 0), Point(1,0), Point(1, -1), Point(0,-1), Point(0,0)]
-        p2 = [Point(100,100), Point(200,100), Point(200, 50), Point(100,50), Point(100,100)]
+        p1 = [pcbnew.wxPoint(0, 0), pcbnew.wxPoint(1,0), pcbnew.wxPoint(1, -1), pcbnew.wxPoint(0,-1), pcbnew.wxPoint(0,0)]
+        p2 = [pcbnew.wxPoint(100,100), pcbnew.wxPoint(200,100), pcbnew.wxPoint(200, 50), pcbnew.wxPoint(100,50), pcbnew.wxPoint(100,100)]
         r = wxPointUtil.check_polygons_intersecting(p1, p2)
         print(r)
-        p2 = [Point(.5,.5), Point(1.5,.5), Point(1.5,-.5), Point(.5,-.5), Point(.5,.5)]
+        p2 = [pcbnew.wxPoint(.5,.5), pcbnew.wxPoint(1.5,.5), pcbnew.wxPoint(1.5,-.5), pcbnew.wxPoint(.5,-.5), pcbnew.wxPoint(.5,.5)]
         r = wxPointUtil.check_polygons_intersecting(p1, p2)
         print(r)
 
@@ -2172,7 +1989,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                 padrect_to_check[-1].append(self.get_corners_rotated_pad(pad))
                 
         USER_minsilkpadspacing = self._frame.FindWindowByName('sp').Value * pcbnew.IU_PER_MM
-        USER_check_overlap_only = self._frame.FindWindowByName('oo').GetValue()
+        USER_slow_check        = self._frame.FindWindowByName('sc').GetValue()
         USER_draw_outlines_thickness = self._frame.FindWindowByName('ot').Value * pcbnew.IU_PER_MM
         USER_draw_outlines = False # (USER_draw_outlines_thickness != 0)
         USER_draw_stroke_thickness   = USER_draw_outlines_thickness
@@ -2222,10 +2039,10 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         layerindex = -1
         for padrects, textrects in itertools.izip(padrect_to_check, textrect_to_check):
             layerindex += 1 # keep track of which layers (by index) are being compared
-            print "Comparing layers: %s and %s"%(
+            self._consoleText.AppendText( "Comparing layers: %s and %s\n"%(
                 self._board.GetLayerName(silk_layer_list[layerindex]),
-                self._board.GetLayerName(pad_layer_list[layerindex]))
-            print "Pads: ", len(padrects),"Text Objects: ",len(textrects)
+                self._board.GetLayerName(pad_layer_list[layerindex])))
+            self._consoleText.AppendText( "Pads: %d; Text Objects: %d\n"%(len(padrects),len(textrects)))
             for ipad,pad in enumerate(padrects):
                 for itext,text in enumerate(textrects):
                     checked+=1
@@ -2244,25 +2061,26 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                         # self.draw_polygon(text)
                         mindist2=0.0 # temporary value until we find segment distances
                         #print 'Check 1: intersecting'
-                    elif not USER_check_overlap_only:
+                    elif USER_slow_check:
                         mindist2 = self.mindistance2_polygon_polygon(text,pad)
                             
                     # if polygons are within mindistance, check all strokes for that text
                     #print mindist2, USER_minsilkpadspacing*USER_minsilkpadspacing
-                    if mindist2 <= USER_minsilkpadspacing*USER_minsilkpadspacing: # and not USER_check_overlap_only:
+                    if mindist2 <= USER_minsilkpadspacing*USER_minsilkpadspacing: # and USER_slow_check:
                         mindist2 = 1000000000*1000000000 # 1m
                         #print "Checking strokes for ", itext,ipad
                         vectors = strokes_to_check[layerindex][itext]
                         intersect=False
                         #print len(vectors)
-                        self.draw_vector(vectors)
-                        self.draw_polygon(pad)
+                        if USER_draw_outlines_thickness > 0:
+                            self.draw_vector(vectors,thickness=USER_draw_outlines_thickness)
+                            self.draw_polygon(pad,thickness=USER_draw_outlines_thickness)
                         for vindex in range(0,len(vectors)-1,2):                            
                             # does this stroke (vector[vindex]) intersect pad?
                             if wxPointUtil.check_polygons_intersecting((vectors[vindex],vectors[vindex+1]),pad,closed=False):
                                 mindist2 = 0.0
                                 break;
-                            elif not USER_check_overlap_only:
+                            elif USER_slow_check:
                                 for vindex in range(0,len(vectors)-1,2):
                                     #print vectors[vindex],vectors[vindex+1],pad
                                     mindist2 = self.mindistance2_line_polygon((vectors[vindex],vectors[vindex+1]),pad)
@@ -2276,9 +2094,16 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                         failed+=1
                         #print("%.3f %.3f %s %s %s"%(pad[0]/pcbnew.IU_PER_MM,pad[1]/pcbnew.IU_PER_MM,texts_to_check[pcbnew.B_SilkS][itext].GetText(),str(pads_by_layernum[pcbnew.B_SilkS][ipad].GetPosition()),str(pads_by_layernum[pcbnew.B_SilkS][ipad].GetBoundingBox().getWxRect())))
                 
-                # Check the drawings against this padrect
-                #print graphicalitems_to_check[layerindex]
-                for gi in graphicalitems_to_check[layerindex]:
+            # Check the drawings against this padrect
+            #print graphicalitems_to_check[layerindex]
+            for gi in graphicalitems_to_check[layerindex]:
+                if not hasattr(gi,'GetShapeStr'):
+                    continue
+                if gi.GetShapeStr() != "Line":
+                    self._consoleText.AppendText("Shape '%s' at %s not checked.\n"%(gi.GetShapeStr(),str(gi.GetCenter())))
+                    continue
+
+                for ipad,pad in enumerate(padrects):
                     # does this stroke (vector[vindex]) intersect pad?
                     mindist2 = 100 * pcbnew.IU_PER_MM
                     #print gi
@@ -2299,7 +2124,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                            (gi.GetStart(),gi.GetEnd()),pad,closed=False):
                             mindist2 = 0.0
                             
-                        # elif not USER_check_overlap_only:
+                        # elif USER_slow_check:
                             # for vindex in range(0,len(vectors)-1,2):
                                 # #print vectors[vindex],vectors[vindex+1],pad
                                 # mindist2 = self.mindistance2_line_polygon((vectors[vindex],vectors[vindex+1]),pad)
@@ -2308,15 +2133,15 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                                 # if intersect:
                                     # break
                     else:
-                        print("Shape '%s' at %s not checked."%(gi.GetShapeStr(),str(gi.GetCenter())))
+                        self._consoleText.AppendText("SHAPE '%s' at %s not checked.\n"%(gi.GetShapeStr(),str(gi.GetCenter())))
                         continue
-                    print gi.GetCenter(), mindist2
+                    #print gi.GetCenter(), mindist2
                     if mindist2 <= USER_minsilkpadspacing*USER_minsilkpadspacing:
                         pads_to_check[layerindex][ipad].SetSelected()
                         gi.SetSelected()
                         failed+=1
 
-        print "Checked:",checked,"Failed:",failed
+        self._consoleText.AppendText("Checked: %d; Failed: %d\n"%(checked,failed))
         return
 
     def GetAllDrawingsAndGraphicItemsByLayer(self):
@@ -2841,7 +2666,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
             AspectRatioL = float(L)/T
             # Desired: AreaRatio > 0.66 and AspectRatio > 1.5
             #if (AreaRatio < 0.66) or (AspectRatioW<1.5):
-            _consoleText.AppendText(
+            self._consoleText.AppendText(
                 "%d %d %f %f %f\n"%(W,L,AreaRatio,AspectRatioW,AspectRatioL))
             #print("%d %d %f %f %f\n"%(W,L,AreaRatio,AspectRatioW,AspectRatioL))
 
