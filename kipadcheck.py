@@ -1,4 +1,4 @@
-# kipadcheck.py
+# kipadcheck.py 
 # Original Author: Greg Smith, June-August 2017
 #
 # Naming conventions (from PEP8):
