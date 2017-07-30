@@ -4,6 +4,9 @@
 # Removed references to pcbnew colors.
 # Disabled non-functional buttons on GUI.
 # Removed unused GeomPoint class.
+# Modified SilkInfo to work with progress bar.
+# Fixed the 'Silk Slow Check' to incorporate text thickness and graphical item width
+# One step closer to working with nightly re: LAYER_ID_COUNT => PCB_LAYER_ID_COUNT
 #
 # Original Author: Greg Smith, June-August 2017
 #
@@ -32,6 +35,12 @@
 # ABOUT:
 
 # This python script provides additional basic DRC checks to KiCAD and lists to make tweaking pads easier for drill compliance, silk compliance, and stencil creation. It adds a menu item to "Tools" called kipadcheck That brings up a dialog for control.#
+
+# KiPadCheck
+# https://github.com/HiGregSmith/KiPadCheck
+
+# KiPadCheck provides additional basic DRC checks to KiCAD
+   # and lists to make tweaking pads for stencil creation easier. Functions include pad list, drill list, drill to drill spacing check, drill to track spacing check, stencil aperture check vs. stencil thicknesses, stencil aperture width vs. paste type, silk overlap of copper.
 # THERE ARE BUGS:
 #
 # Preliminary support is included for more than 2 layers.
@@ -539,8 +548,22 @@ class KiPadCheck( pcbnew.ActionPlugin ):
        of KiCad layers and objects. Includes information and checks on:
        Pads, Silk, Stencil Apertures (Paste), and Drills."""
 
-    # Some threading support for self._progress bar (wx.Gauge)
+# LAYERCOUNT = 0
+# while (0 <= pcbnew.GetBoard().GetLayerID(pcbnew.GetBoard().GetLayerName(LAYERCOUNT)) <= 254):
+    # LAYERCOUNT += 1
 
+# num = 0
+# while (0 <= pcbnew.GetBoard().GetLayerID(pcbnew.GetBoard().GetLayerName(num)) <= 254):
+    # num += 1
+# num
+  
+    try:
+        LAYERCOUNT = pcbnew.PCB_LAYER_ID_COUNT # nightlies, post 4.0.6
+    except:
+        LAYERCOUNT = pcbnew.LAYER_ID_COUNT # KiCad 4.0.6 stable
+        
+
+    # Some threading support for self._progress bar (wx.Gauge)
 
     # This allows stopping the thread from outside the thread.
     _progress_stop = False
@@ -1305,6 +1328,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
     # http://www.indium.com/blog/solder-powder-types-3-4-5-6-7.php
 
 
+        
     padshapes = {
         pcbnew.PAD_SHAPE_CIRCLE: "CIRC",
         pcbnew.PAD_SHAPE_OVAL: "OVAL",
@@ -1405,12 +1429,12 @@ class KiPadCheck( pcbnew.ActionPlugin ):
             sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mil) Via to Via spacing","vv",12.0))
             sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mil) Via to Track spacing","vt",12.0))
             sp = self.CreateLabeledEntry(panelbottom,"(mm) Silk to Pad spacing","sp",0.0)
-            sp.Disable()
+            #sp.Disable()
             sizerbottom.Add(sp)
             sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mm) Outline Thickness","ot",0.00))
             cb = self.CreateLabeledCheckBox(panelbottom,"Silk Slow Check","sc")
             sizerbottom.Add(cb)
-            cb.Disable()
+            #cb.Disable()
             #wx.CheckBox(panelbottom,wx.ID_ANY,name='oo', pos=wx.Point(300,300), initial=True,label="hello")
             #sizerbottom.Add(sl)
             
@@ -1442,13 +1466,13 @@ class KiPadCheck( pcbnew.ActionPlugin ):
             panelbottom.Refresh()
 
         self._board = pcbnew.GetBoard()
-        #self._layernums = [num for num in range(pcbnew.LAYER_ID_COUNT) if not self._board.GetLayerName(num).startswith("In")]
+        #self._layernums = [num for num in range(self.LAYERCOUNT) if not self._board.GetLayerName(num).startswith("In")]
         copperLayers = filter(
             (lambda x: pcbnew.IsCopperLayer(x)),
-            range(pcbnew.LAYER_ID_COUNT))
+            range(self.LAYERCOUNT))
         nonCopperLayers = filter(
             (lambda x: pcbnew.IsNonCopperLayer(x)),
-            range(pcbnew.LAYER_ID_COUNT))
+            range(self.LAYERCOUNT))
         self._layernums = copperLayers[0:self._board.GetCopperLayerCount()] \
             + nonCopperLayers
         self._layernums = copperLayers + nonCopperLayers
@@ -1458,7 +1482,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
             + nonCopperLayers
 
         self._layer_num_by_name = {}
-        for num in range(pcbnew.LAYER_ID_COUNT):
+        for num in range(self.LAYERCOUNT):
             self._layer_num_by_name[self._board.GetLayerName(num)] = num
         self._consoleText.AppendText("Finished MenuItemPadInfo()\n")
         self._frame.Show(True)
@@ -1476,7 +1500,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
            Return as a list in the same order as vias
            (or get_vias(), if vias is not supplied)"""
         return map(
-            lambda v: tuple(layer for layer in range(pcbnew.LAYER_ID_COUNT) \
+            lambda v: tuple(layer for layer in range(self.LAYERCOUNT) \
             if layer in _layernums \
             #not self._board.GetLayerName(layer).startswith("In") \
                 and v.IsOnLayer(layer)), vias or get_vias())
@@ -1489,8 +1513,8 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         """Returns a dictionary with layer number as key, and a list of
            all drill holes (those from vias and pads)."""
         #self._board = pcbnew.GetBoard()
-        # self._layernums = [num for num in range(pcbnew.LAYER_ID_COUNT) if not self._board.GetLayerName(num).startswith("In")]
-        # self._layernums = range(pcbnew.LAYER_ID_COUNT)
+        # self._layernums = [num for num in range(self.LAYERCOUNT) if not self._board.GetLayerName(num).startswith("In")]
+        # self._layernums = range(self.LAYERCOUNT)
         allholes = self.GetPads()
         allholes.extend(self.get_vias())
         
@@ -1924,9 +1948,58 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         ds.SetWidth(int(thicknessmm*pcbnew.IU_PER_MM))
 
     def SilkInfo(self,e):
+    
+        # Set up the thread, check if it is already running.
+        # If so, return.
+        self._progress_stop = False
+        if self.WorkerThread is not None and self.WorkerThread.is_alive():
+            self.ProgressThreadFunction(self.WorkerThreadself)
+            self._progress.SetValue(0)
+            return
+
+        # Set up specifically for this worker thread.
+        # only enough to set the max value of the progress bar.
+        
+        # Total number of checks is:
+        # For each layer pair of padrects[i]*textrects[i]
+        # + padrects[i]*graphicalitems_to_check[i]
+        # Alternatively, just count each pad (sum of padrects[i]).
+        
+        pad_layer_list = (pcbnew.F_Cu,pcbnew.B_Cu)
+
+        # Get items to check that are pads on the layers in pad_layer_list
+        pads = self.GetPads()
+        pads_to_check = []
+        for layernum in pad_layer_list:
+            pads_to_check.append(filter(lambda x:x.IsOnLayer(layernum),pads))
+        
+        done=sum([len(p) for p in pads_to_check])
+        self._consoleText.AppendText("progress bar set to %d\n"%done)
+        # initialize progress bar
+        self._progress.SetRange(done)
+
+        # Start up the worker thread
+        self.WorkerThread = threading.Thread(
+            target=self.SilkInfo_Worker, 
+            name="WT", 
+            args=(), 
+            kwargs={})#, daemon=False)#, *, daemon=None)
+        self.WorkerThread.start()
+        # Start the progress thread that updates the progress bar
+        # and console text
+        self.ProgressThreadFunction(self.WorkerThread)
+        
+        # Finalize by making sure the worker thread is complete,
+        # Then reset the progress bar.
+        self.WorkerThread.join()
+        self._progress.SetValue(0)
+
+       
+    def SilkInfo_Worker(self):
         """Main function for getting information about the Silk Layers on the current board.
            And executes basic silk-related DRC checks."""
-
+        # self._progress_value_queue.put(count)
+        # self._console_text_queue.put(text)
         sp = self._frame.FindWindowByName('vv')
         MinimumSilkToPadMils = sp.Value
         MinimumSilkToPadMils = 0
@@ -1954,6 +2027,19 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         pad_layer_list = (pcbnew.F_Cu,pcbnew.B_Cu)
         # other options:
         # pad_layer_list = (pcbnew.F_Mask,pcbnew.B_Mask)
+
+        # Get items to check that are pads on the copper layers
+        pads = self.GetPads()
+        pads_to_check = []
+        for layernum in pad_layer_list:
+            pads_to_check.append(filter(lambda x:x.IsOnLayer(layernum),pads))
+          
+        padrect_to_check = []
+        for layerindex,layernum in enumerate(pad_layer_list):
+            padrect_to_check.append([])
+            for i,pad in enumerate(pads_to_check[layerindex]):
+                padrect_to_check[-1].append(self.get_corners_rotated_pad(pad))
+
         
         # Get items to check on the silk layer (right now, just text)
         texts_to_check = []
@@ -1984,15 +2070,6 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                 textrect_to_check[-1].append(self.get_corners_rotated_text(text))
             # for text in strokes_to_check[-1]:
                 # wxPointUtil.convex_hull(strokes)
-        # Get items to check that are pads on the copper layers
-        pads = self.GetPads()
-        pads_to_check = []
-        padrect_to_check = []
-        for layernum in pad_layer_list:
-            pads_to_check.append(filter(lambda x:x.IsOnLayer(layernum),pads))
-            padrect_to_check.append([])
-            for i,pad in enumerate(pads_to_check[-1]):
-                padrect_to_check[-1].append(self.get_corners_rotated_pad(pad))
                 
         USER_minsilkpadspacing = self._frame.FindWindowByName('sp').Value * pcbnew.IU_PER_MM
         USER_slow_check        = self._frame.FindWindowByName('sc').GetValue()
@@ -2043,15 +2120,23 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         #print "Back",len(pads_to_check[pcbnew.B_SilkS]),len(texts_to_check[pcbnew.B_SilkS])
         #BTextRect=[]
         layerindex = -1
+        progress_count = 0
+        # loop through the layer pairs
         for padrects, textrects in itertools.izip(padrect_to_check, textrect_to_check):
             layerindex += 1 # keep track of which layers (by index) are being compared
-            self._consoleText.AppendText( "Comparing layers: %s and %s\n"%(
+
+            self._console_text_queue.put( "Comparing layers: %s and %s\n"%(
                 self._board.GetLayerName(silk_layer_list[layerindex]),
                 self._board.GetLayerName(pad_layer_list[layerindex])))
-            self._consoleText.AppendText( "Pads: %d; Text Objects: %d\n"%(len(padrects),len(textrects)))
+            self._console_text_queue.put( "Pads: %d; Text Objects: %d\n"%(len(padrects),len(textrects)))
             for ipad,pad in enumerate(padrects):
+                progress_count+=1
+                self._progress_value_queue.put(progress_count)
+                #self._console_text_queue.put("Progress = %d\n"%progress_count)
+
                 for itext,text in enumerate(textrects):
                     checked+=1
+                    flow = 'start '
                     # mindist = self.mindistance_polygon_polygon(text,pad)
                     # continue
                     #print str(pad),str(text)
@@ -2066,14 +2151,16 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                         # self.draw_polygon(pad)
                         # self.draw_polygon(text)
                         mindist2=0.0 # temporary value until we find segment distances
-                        #print 'Check 1: intersecting'
+                        flow += '-> intersecting'
                     elif USER_slow_check:
-                        mindist2 = self.mindistance2_polygon_polygon(text,pad)
+                        mindist2 = (self.mindistance_polygon_polygon(text,pad) - texts_to_check[layerindex][itext].GetThickness()/2.0)**2.0
+                        flow += '-> mindist2_pp'
                             
                     # if polygons are within mindistance, check all strokes for that text
                     #print mindist2, USER_minsilkpadspacing*USER_minsilkpadspacing
                     if mindist2 <= USER_minsilkpadspacing*USER_minsilkpadspacing: # and USER_slow_check:
                         mindist2 = 1000000000*1000000000 # 1m
+                        flow += '-> mindist2 le minsilk'
                         #print "Checking strokes for ", itext,ipad
                         vectors = strokes_to_check[layerindex][itext]
                         intersect=False
@@ -2085,33 +2172,36 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                             # does this stroke (vector[vindex]) intersect pad?
                             if wxPointUtil.check_polygons_intersecting((vectors[vindex],vectors[vindex+1]),pad,closed=False):
                                 mindist2 = 0.0
-                                break;
-                            elif USER_slow_check:
-                                for vindex in range(0,len(vectors)-1,2):
-                                    #print vectors[vindex],vectors[vindex+1],pad
-                                    mindist2 = self.mindistance2_line_polygon((vectors[vindex],vectors[vindex+1]),pad)
-                                    intersect = (mindist2< USER_minsilkpadspacing*USER_minsilkpadspacing)
-                                    #print intersect, mindist2
-                                    if intersect:
-                                        break
+                                flow += '-> stroke intersect'
+                                break
+                        
+                        if USER_slow_check and mindist2 > USER_minsilkpadspacing*USER_minsilkpadspacing:
+                            for vindex in range(0,len(vectors)-1,2):
+                                #print vectors[vindex],vectors[vindex+1],pad
+                                mindist2 = (self.mindistance_line_polygon((vectors[vindex],vectors[vindex+1]),pad) - texts_to_check[layerindex][itext].GetThickness()/2)**2.0
+                                if mindist2 <= USER_minsilkpadspacing*USER_minsilkpadspacing:
+                                    flow += '-> stroke dist<=min'
+                                    break
                     if mindist2 <= USER_minsilkpadspacing*USER_minsilkpadspacing:
+                        #self._console_text_queue.put("%d %d\n"%(mindist2,USER_minsilkpadspacing*USER_minsilkpadspacing))
                         pads_to_check[layerindex][ipad].SetSelected()
                         texts_to_check[layerindex][itext].SetSelected()
                         failed+=1
                         #print("%.3f %.3f %s %s %s"%(pad[0]/pcbnew.IU_PER_MM,pad[1]/pcbnew.IU_PER_MM,texts_to_check[pcbnew.B_SilkS][itext].GetText(),str(pads_by_layernum[pcbnew.B_SilkS][ipad].GetPosition()),str(pads_by_layernum[pcbnew.B_SilkS][ipad].GetBoundingBox().getWxRect())))
-                
+                    #self._console_text_queue.put('%s\n'%flow)
             # Check the drawings against this padrect
             #print graphicalitems_to_check[layerindex]
             for gi in graphicalitems_to_check[layerindex]:
                 if not hasattr(gi,'GetShapeStr'):
                     continue
                 if gi.GetShapeStr() != "Line":
-                    self._consoleText.AppendText("Shape '%s' at %s not checked.\n"%(gi.GetShapeStr(),str(gi.GetCenter())))
+                    self._console_text_queue.put("Shape '%s' at %s not checked.\n"%(gi.GetShapeStr(),str(gi.GetCenter())))
                     continue
-
+                #self.draw_segment(gi.GetStart().x,gi.GetStart().y,gi.GetEnd().x,gi.GetEnd().y,layer=pcbnew.Eco2_User, thicknessmm=0.02)
+                #self._console_text_queue.put("width=%.3f mm\n"%(gi.GetWidth()/pcbnew.IU_PER_MM))
                 for ipad,pad in enumerate(padrects):
                     # does this stroke (vector[vindex]) intersect pad?
-                    mindist2 = 100 * pcbnew.IU_PER_MM
+                    mindist2 = (1000 * pcbnew.IU_PER_MM)*(1000 * pcbnew.IU_PER_MM)
                     #print gi
                     if not hasattr(gi,'GetShapeStr'):
                         continue
@@ -2129,17 +2219,18 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                         if wxPointUtil.check_polygons_intersecting(
                            (gi.GetStart(),gi.GetEnd()),pad,closed=False):
                             mindist2 = 0.0
+                            # break
                             
-                        # elif USER_slow_check:
-                            # for vindex in range(0,len(vectors)-1,2):
-                                # #print vectors[vindex],vectors[vindex+1],pad
-                                # mindist2 = self.mindistance2_line_polygon((vectors[vindex],vectors[vindex+1]),pad)
-                                # intersect = (mindist2< USER_minsilkpadspacing*USER_minsilkpadspacing)
-                                # #print intersect, mindist2
-                                # if intersect:
-                                    # break
+                        elif USER_slow_check:
+                            #for vindex in range(0,len(vectors)-1,2):
+                            #print vectors[vindex],vectors[vindex+1],pad
+                            # Width is the diameter, but we need to subtract the radius
+                            mindist2 = (self.mindistance_line_polygon((gi.GetStart(),gi.GetEnd()),pad) - gi.GetWidth()/2.0)**2.0
+                            #self._console_text_queue.put("%d %d\n"%(mindist2,gi.GetWidth()))
+                            # if mindist2<= USER_minsilkpadspacing*USER_minsilkpadspacing:
+                                # break
                     else:
-                        self._consoleText.AppendText("SHAPE '%s' at %s not checked.\n"%(gi.GetShapeStr(),str(gi.GetCenter())))
+                        self._console_text_queue.put("SHAPE '%s' at %s not checked.\n"%(gi.GetShapeStr(),str(gi.GetCenter())))
                         continue
                     #print gi.GetCenter(), mindist2
                     if mindist2 <= USER_minsilkpadspacing*USER_minsilkpadspacing:
@@ -2147,7 +2238,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                         gi.SetSelected()
                         failed+=1
 
-        self._consoleText.AppendText("Checked: %d; Failed: %d\n"%(checked,failed))
+        self._console_text_queue.put("Checked: %d; Failed: %d\n"%(checked,failed))
         return
 
     def GetAllDrawingsAndGraphicItemsByLayer(self):
@@ -2157,7 +2248,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
             
         itemsByLayer={}
         for i in items:
-            for layernum in range(pcbnew.LAYER_ID_COUNT):
+            for layernum in range(self.LAYERCOUNT):
                 if i.IsOnLayer(layernum):
                     itemsByLayer.setdefault(layernum,[]).append(i)
         return itemsByLayer
@@ -2702,7 +2793,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
     def mindistance_line_polygon(self,line,polygon):
         """Return the minimum distance between the specified line and polygon.
            Polygon is a list of wxPoint vertices"""
-        return math.sqrt(mindistance2_line_polygon(self,line,polygon))
+        return math.sqrt(self.mindistance2_line_polygon(line,polygon))
 
     def mindistance2_line_polygon(self,line,polygon):
         """Return the minimum distance between the specified line and polygon.
@@ -2730,7 +2821,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
     def mindistance_polygon_polygon(self,polygon1,polygon2):
         """Return the minimum distance between the specified polygons.
            Each polygon is a list of wxPoint vertices"""
-        return math.sqrt(mindistance2_polygon_polygon(self,polygon1,polygon2))
+        return math.sqrt(self.mindistance2_polygon_polygon(polygon1,polygon2))
 
     def mindistance2_polygon_polygon(self,polygon1,polygon2):
         """Return the minimum distance between the specified polygons.
@@ -2809,5 +2900,3 @@ else:
 
 # register through Action Script when imported
 kpc.register()
-
-# rubsy fluid flux paste
