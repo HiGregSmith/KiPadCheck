@@ -8,6 +8,9 @@
 # Fixed the 'Silk Slow Check' to incorporate text thickness and graphical item width
 # One step closer to working with nightly re: LAYER_ID_COUNT => PCB_LAYER_ID_COUNT
 #
+# Eliminate dependence on class variable _board.
+# Pad and drill lists not already ordered by number are ordered by area
+#
 # Original Author: Greg Smith, June-August 2017
 #
 # Naming conventions (from PEP8):
@@ -34,8 +37,11 @@
 #
 # ABOUT:
 
-# This python script provides additional basic DRC checks to KiCAD and lists to make tweaking pads easier for drill compliance, silk compliance, and stencil creation. It adds a menu item to "Tools" called kipadcheck That brings up a dialog for control.#
-
+# This python script provides additional basic DRC checks to KiCAD and lists
+# to make tweaking pads easier for drill compliance, silk compliance, and
+# stencil creation. It adds a menu item to "Tools" called kipadcheck which
+# brings up a dialog for control.
+#
 # KiPadCheck
 # https://github.com/HiGregSmith/KiPadCheck
 
@@ -234,7 +240,7 @@ import random # for testing
 
 
  
-    # ds = self._board.GetDesignSettings() 
+    # ds = board.GetDesignSettings() 
     # ugly. exposes a public member not via an accessor method
     # nc = ds.m_NetClasses
     # foo = pcbnew.NETCLASSPTR("foo")
@@ -507,7 +513,7 @@ class wxPointUtil:
             pcbnew.wxPoint(minx,miny)) # lower left
 
             
-    # ds = self._board.GetDesignSettings() 
+    # ds = board.GetDesignSettings() 
     # ugly. exposes a public member not via an accessor method
     # nc = ds.m_NetClasses
     # foo = pcbnew.NETCLASSPTR("foo")
@@ -1357,8 +1363,8 @@ class KiPadCheck( pcbnew.ActionPlugin ):
        that don't exist as indicated by GetBoard().GetCopperLayerCount()"""
     _layer_num_by_name = {}
     """Dicationary of layer numbers indicated by the given name."""
-    _board = None
-    """The current board loaded into KiCad (shortcut for pcbnew.GetBoard())"""        
+    # _board = None
+    # """The current board loaded into KiCad (shortcut for pcbnew.GetBoard())"""        
 
     def CreateLabeledEntry(self,parent,label="",name="",value=0.0):
         """Create a wx Double Spin Control with label for the GUI."""
@@ -1394,6 +1400,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         """The main function called when the menu item is selected.
            This function displays the Dialog for providing parameters and executing
            functions."""
+        board = pcbnew.GetBoard()
         self._consoleText.AppendText("Starting MenuItemPadInfo()...\n")
 
         windowName = 'KiPadCheck'
@@ -1431,7 +1438,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
             sp = self.CreateLabeledEntry(panelbottom,"(mm) Silk to Pad spacing","sp",0.0)
             #sp.Disable()
             sizerbottom.Add(sp)
-            sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mm) Outline Thickness","ot",0.00))
+            sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mm) Outline Thickness (for debug)","ot",0.00))
             cb = self.CreateLabeledCheckBox(panelbottom,"Silk Slow Check","sc")
             sizerbottom.Add(cb)
             #cb.Disable()
@@ -1465,25 +1472,24 @@ class KiPadCheck( pcbnew.ActionPlugin ):
             panelbottom.Update()
             panelbottom.Refresh()
 
-        self._board = pcbnew.GetBoard()
-        #self._layernums = [num for num in range(self.LAYERCOUNT) if not self._board.GetLayerName(num).startswith("In")]
+        #self._layernums = [num for num in range(self.LAYERCOUNT) if not board.GetLayerName(num).startswith("In")]
         copperLayers = filter(
             (lambda x: pcbnew.IsCopperLayer(x)),
             range(self.LAYERCOUNT))
         nonCopperLayers = filter(
             (lambda x: pcbnew.IsNonCopperLayer(x)),
             range(self.LAYERCOUNT))
-        self._layernums = copperLayers[0:self._board.GetCopperLayerCount()] \
+        self._layernums = copperLayers[0:board.GetCopperLayerCount()] \
             + nonCopperLayers
-        self._layernums = copperLayers + nonCopperLayers
+        #self._layernums = copperLayers + nonCopperLayers
         self._layernums = [copperLayers[0]] \
             + [copperLayers[-1]] \
-            + copperLayers[1:self._board.GetCopperLayerCount()-1] \
+            + copperLayers[1:board.GetCopperLayerCount()-1] \
             + nonCopperLayers
 
         self._layer_num_by_name = {}
         for num in range(self.LAYERCOUNT):
-            self._layer_num_by_name[self._board.GetLayerName(num)] = num
+            self._layer_num_by_name[board.GetLayerName(num)] = num
         self._consoleText.AppendText("Finished MenuItemPadInfo()\n")
         self._frame.Show(True)
         self._frame.Update()
@@ -1492,8 +1498,8 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         
     #	PadLayerNames, PadLayers = GetPadLayerNameNum()
     def get_vias(self):
-        """Get vias by filtering from the _board.GetTracks()."""
-        return filter((lambda x: x.Cast_to_VIA()), self._board.GetTracks())
+        """Get vias by filtering from _board.GetTracks()."""
+        return filter((lambda x: x.Cast_to_VIA()), pcbnew.GetBoard().GetTracks())
         
     def GetViaLayerNameNum(self,vias=None):
         """Get the layer numbers that each via is on.
@@ -1502,18 +1508,41 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         return map(
             lambda v: tuple(layer for layer in range(self.LAYERCOUNT) \
             if layer in _layernums \
-            #not self._board.GetLayerName(layer).startswith("In") \
+            #not board.GetLayerName(layer).startswith("In") \
                 and v.IsOnLayer(layer)), vias or get_vias())
 
     def GetPads(self):
         """Get all the pads in a list ordered by pad number."""
-        return [self._board.GetPad(n) for n in range(self._board.GetPadCount())]
+        board = pcbnew.GetBoard()
+        return [board.GetPad(n) for n in range(board.GetPadCount())]
+        
+    def get_drill_size(self,object):
+        """Gets the value of the drill from pad or via."""
+        if hasattr(object,'GetDrillSize'):
+            d = object.GetDrillSize()
+        else:
+            d = object.GetDrillValue()
+            d = pcbnew.wxPoint(d,d)
+        return d
+
+
+    def get_holes_by_layer(self):
+        """Get all the pads in a list ordered by pad number."""
+        board = pcbnew.GetBoard()
+        holes = [board.GetPad(n) for n in range(board.GetPadCount()) if board.GetPad(n).GetDrillSize().x != 0 and board.GetPad(n).GetDrillSize().y != 0]
+        holes.extend(self.get_vias())
+        
+        holes_by_layer = {}
+        for layernum in self._layernums:
+            hs = filter ( lambda x: x.IsOnLayer(layernum), holes )
+            if len(hs):
+                holes_by_layer[layernum] = hs 
+        return holes_by_layer
 
     def GetAllHolesByLayer(self):
         """Returns a dictionary with layer number as key, and a list of
            all drill holes (those from vias and pads)."""
-        #self._board = pcbnew.GetBoard()
-        # self._layernums = [num for num in range(self.LAYERCOUNT) if not self._board.GetLayerName(num).startswith("In")]
+        # self._layernums = [num for num in range(self.LAYERCOUNT) if not board.GetLayerName(num).startswith("In")]
         # self._layernums = range(self.LAYERCOUNT)
         allholes = self.GetPads()
         allholes.extend(self.get_vias())
@@ -1538,16 +1567,17 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         """Returns two structures: PadLayerNames is a list of layer names
         on which the pad lies, and PadLayers is a list of layer numbers.
         Each list is ordered by pad number."""
+        board = pcbnew.GetBoard()
         PadLayers = {}
         PadLayerNames = {}
-        for padnum in range(self._board.GetPadCount()):
-            pad = self._board.GetPad(padnum)
+        for padnum in range(board.GetPadCount()):
+            pad = board.GetPad(padnum)
             #_consoleText.AppendText("%s "%padnum)
             for layernum in self._layernums:
                 if pad.IsOnLayer(layernum):
                     PadLayers.setdefault(padnum,[]).append(layernum)
                     PadLayerNames.setdefault(padnum,[]). \
-                        append(self._board.GetLayerName(layernum))
+                        append(board.GetLayerName(layernum))
             #_consoleText.AppendText("%s\n"%(" ".join(PadLayerNames[padnum])))
         # _consoleText.AppendText("************** PadLayerNames*************\n")
 
@@ -1558,11 +1588,12 @@ class KiPadCheck( pcbnew.ActionPlugin ):
     def GetPadSizes(self,padnums=None):
         """Returns a dictionary with key of pad size, and value of the list
            of pad numbers with that size."""
+        board = pcbnew.GetBoard()
         padsizes = {}
         if padnums==None:
-            padnums = range(self._board.GetPadCount())
+            padnums = range(board.GetPadCount())
         for padnum in padnums:
-            pad = self._board.GetPad(padnum)
+            pad = board.GetPad(padnum)
             key = pad.GetSize()
             key = (int(key[0]),int(key[1]))
             padsizes.setdefault(key,[]).append(pad)
@@ -1571,11 +1602,12 @@ class KiPadCheck( pcbnew.ActionPlugin ):
     def GetStencilSizes(self,padnums=None):
         """Returns a dictionary with key of Paste (stencil aperture) size,
            and value of the list of pad numbers with that size."""
+        board = pcbnew.GetBoard()
         stencilsizes = {}
         if padnums==None:
-            padnums = range(self._board.GetPadCount())
+            padnums = range(board.GetPadCount())
         for padnum in padnums:
-            pad = self._board.GetPad(padnum)
+            pad = board.GetPad(padnum)
             key = self.GetApertureSize(pad)
             key = (int(key[0]),int(key[1]))
             stencilsizes.setdefault(key,[]).append(padnum)
@@ -1584,11 +1616,13 @@ class KiPadCheck( pcbnew.ActionPlugin ):
     def GetPadHoles(self,padnums=None):
         """Returns a dictionary with key of Drill Hole size,
            and value of the list of pad numbers with that size."""
+        board = pcbnew.GetBoard()
+           
         self.padHolesBySize = {}
         # if padnums==None:
-            # padnums = range(self._board.GetPadCount())
-        for padnum in padnums or range(self._board.GetPadCount()):
-            pad = self._board.GetPad(padnum)
+            # padnums = range(board.GetPadCount())
+        for padnum in padnums or range(board.GetPadCount()):
+            pad = board.GetPad(padnum)
             dsize = pad.GetDrillSize()
             self.padHolesBySize.setdefault( \
                 (int(dsize[0]),int(dsize[1])),[]).append(pad)
@@ -1646,7 +1680,8 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         
     def PadInfo(self,e):
         """Main function for getting information about the pads in the current board."""
-        self._consoleText.AppendText("Number of pads: %s\n"%(self._board.GetPadCount()))
+        board = pcbnew.GetBoard()
+        self._consoleText.AppendText("Number of pads: %s\n"%(board.GetPadCount()))
         #_consoleText.AppendText("All Layers: %s\n"%(str(self._layernums)))
         
         self._consoleText.AppendText(
@@ -1660,8 +1695,8 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         # module.GetPads()
         self.PadsByReferenceAndName = {}
         PadLayerNames, PadLayers = self.GetPadLayerNameNum()
-        for padnum in range(self._board.GetPadCount()):
-            pad = self._board.GetPad(padnum)
+        for padnum in range(board.GetPadCount()):
+            pad = board.GetPad(padnum)
             self.PadsByReferenceAndName.setdefault(
                 str(pad.GetParent().GetReference()),{}). \
                 setdefault(str(pad.GetPadName()),[]).append(padnum)
@@ -1671,8 +1706,8 @@ class KiPadCheck( pcbnew.ActionPlugin ):
             for padname in sorted(self.PadsByReferenceAndName[ref]):
                 sortedpads.extend(self.PadsByReferenceAndName[ref][padname])
                 
-        for padnum in sortedpads: #range(self._board.GetPadCount()):
-            pad = self._board.GetPad(padnum)
+        for padnum in sortedpads: #range(board.GetPadCount()):
+            pad = board.GetPad(padnum)
             psize = pad.GetSize()
             psize = (psize[0]/pcbnew.IU_PER_MM,psize[1]/pcbnew.IU_PER_MM)
             dsize = pad.GetDrillSize()
@@ -1700,8 +1735,13 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                     pad.GetSolderMaskMargin()/pcbnew.IU_PER_MM,
                     pad.GetLocalSolderMaskMargin()/pcbnew.IU_PER_MM
                     ))
-        self._consoleText.AppendText("\n***** Quantity of Pads By Size *****\n")
-        for padsize,padlist in self.GetPadSizes().iteritems():
+        self._consoleText.AppendText("\n***** Quantity of Pads By Size, ordered by Area *****\n")
+        # sort pad sizes by area
+        psizes = self.GetPadSizes()
+        sizes = psizes.keys()
+        sizes.sort(key=(lambda x: x[0]*x[1]))
+        for padsize in sizes:
+            padlist = psizes[padsize]
             self._consoleText.AppendText(
                 "Size: %.3f %.3f, "
                 "Quantity %s\n"%(
@@ -1795,7 +1835,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
             0.0)#object.GetOrientation())
     def remove_drawings(self,layer):
         """Removes all drawings on specified layer from pcbnew.GetBoard()."""
-        ds = self._board.GetDrawings()
+        ds = pcbnew.GetBoard().GetDrawings()
         for d in ds:
             if d.IsOnLayer(layer):
                 d.Remove()
@@ -1939,9 +1979,9 @@ class KiPadCheck( pcbnew.ActionPlugin ):
     def draw_segment(self,x1,y1,x2,y2,layer=pcbnew.Dwgs_User,thicknessmm=0.15):
         """Draws the line segment indicated by the x,y values
         on the given layer and with the given thickness."""
-        b=self._board or pcbnew.GetBoard()
-        ds=pcbnew.DRAWSEGMENT(b)
-        b.Add(ds)
+        board = pcbnew.GetBoard()
+        ds=pcbnew.DRAWSEGMENT(board)
+        board.Add(ds)
         ds.SetStart(pcbnew.wxPoint(x1,y1))
         ds.SetEnd(pcbnew.wxPoint(x2,y2))
         ds.SetLayer(layer)
@@ -2000,6 +2040,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
            And executes basic silk-related DRC checks."""
         # self._progress_value_queue.put(count)
         # self._console_text_queue.put(text)
+        board = pcbnew.GetBoard()
         sp = self._frame.FindWindowByName('vv')
         MinimumSilkToPadMils = sp.Value
         MinimumSilkToPadMils = 0
@@ -2126,8 +2167,8 @@ class KiPadCheck( pcbnew.ActionPlugin ):
             layerindex += 1 # keep track of which layers (by index) are being compared
 
             self._console_text_queue.put( "Comparing layers: %s and %s\n"%(
-                self._board.GetLayerName(silk_layer_list[layerindex]),
-                self._board.GetLayerName(pad_layer_list[layerindex])))
+                board.GetLayerName(silk_layer_list[layerindex]),
+                board.GetLayerName(pad_layer_list[layerindex])))
             self._console_text_queue.put( "Pads: %d; Text Objects: %d\n"%(len(padrects),len(textrects)))
             for ipad,pad in enumerate(padrects):
                 progress_count+=1
@@ -2319,13 +2360,14 @@ class KiPadCheck( pcbnew.ActionPlugin ):
            This is the parent function that instantiates and installs a separated
            workor thread (DrillInfo_Worker())"""
     # TODO: Clean up _progress_stop: change to CancelDrillWorker, provide for cancel.
+        board = pcbnew.GetBoard()
         self._progress_stop = False
         if self.WorkerThread is not None and self.WorkerThread.is_alive():
             self.ProgressThreadFunction(self.WorkerThreadself)
             self._progress.SetValue(0)
             return
 
-        for t in self._board.GetTracks():
+        for t in board.GetTracks():
             t.ClearSelected()
             t.ClearHighlighted()
             t.ClearBrightened()
@@ -2350,11 +2392,13 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         # this is run in a thread
         # use _console_text_queue and _progress_value_queue
         # to update the GUI
+        
+        board = pcbnew.GetBoard()
         vv = self._frame.FindWindowByName('vv')
         vt = self._frame.FindWindowByName('vt')
         MinimumViaViaMils = vv.Value
         MinimumViaTrackMils = vt.Value
-
+        MinimumViaVia = MinimumViaViaMils*pcbnew.IU_PER_MILS
         self._console_text_queue.put(
             "\n\n***** Quantity of holes by layer and size *****\n")
         self._console_text_queue.put("Layers: %s\n"%(str(self.GetAllHolesByLayer().keys())))
@@ -2385,7 +2429,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
 
             self._console_text_queue.put(
                 "Layer %s (%s):\n"%(
-                self._board.GetLayerName(layer),
+                board.GetLayerName(layer),
                 ', '.join(IsOrIsNot)))
             bysize = {}
             for hole in holelist:
@@ -2401,7 +2445,10 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                 if d[0] == 0.0 or d[1] == 0.0:
                     continue
                 bysize.setdefault((d[0],d[1]),[]).append(hole)
-            for size,holelist in bysize.iteritems():
+                
+            areaorder = sorted(bysize.keys(),key=lambda x: x[0]*x[1])
+            for size in areaorder:
+                holelist = bysize[size]
                 self._console_text_queue.put(
                     "Size %.3f,%.3f; "
                     "Quantity %d\n"%(
@@ -2409,16 +2456,30 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                     size[1]/pcbnew.IU_PER_MM,
                     len(holelist)))
         self._console_text_queue.put("\n\n***** Check hole separation by layer *****\n")
-        for layer, holelist in allHolesByLayer.iteritems():
-            self._console_text_queue.put("Layer %s:\n"%self._board.GetLayerName(layer))
-            self._console_text_queue.put("\tNo Check Done.\n")
-        
+        mindist = 1000*pcbnew.IU_PER_MM
+        for layer, holelist in self.get_holes_by_layer().iteritems():
+            fails = 0
+            for i in range(len(holelist)-2):
+                sizei = self.get_drill_size(holelist[i])
+                for j in range(i+1,len(holelist)-1):
+                    sizej = self.get_drill_size(holelist[j])
+                    dist2 = wxPointUtil.distance2(holelist[i].GetCenter(),holelist[j].GetCenter())
+                    mindist = min(mindist,math.sqrt(dist2) - (max(sizei.x,sizei.y) + max(sizej.x,sizej.y))/2.0)
+                    if mindist <= MinimumViaVia:
+                        holelist[i].SetSelected()
+                        holelist[j].SetSelected()
+                        fails += 1
+            self._console_text_queue.put("Layer %s => %d errors:\n"%(board.GetLayerName(layer),fails))
+                     
+            
         count = 0
         self._progress_value_queue.put(count)
         #_console_text_queue.put("\n%s\n"%(str(count)))
         self._console_text_queue.put(
-            "\n\n***** Quantity of Pads By Specified Drill Size *****\n")
-        for padsize,padlist in self.padHolesBySize.iteritems():
+            "\n\n***** Quantity of Pads By Specified Drill Size, ordered by area *****\n")
+        areaorder = sorted(self.padHolesBySize.keys(),key=lambda x:x[0]*x[1])
+        for padsize in areaorder:
+            padlist = self.padHolesBySize[padsize]
             count += 1
             self._progress_value_queue.put(count)
             #_console_text_queue.put(str(count))
@@ -2430,10 +2491,13 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                 "Size: %.3fmm, Quantity %s\n"%(
                 padsize[0]/pcbnew.IU_PER_MM,len(padlist)))
         self._console_text_queue.put(
-            "\n\n***** Quantity of Pads By Standard Drill Size *****\n")
+            "\n\n***** Quantity of Pads By Standard Drill Size, ordered by area *****\n")
         setname, scale, source = self._StandardDrillInfo[self._DrillSet]
         self._console_text_queue.put("%s from:\n%s\n\n"%(setname,source))
-        for padsize,padlist in self.padHolesBySize.iteritems():
+        
+        areaorder = sorted(self.padHolesBySize.keys(),key=lambda x:x[0]*x[1])
+        for padsize in areaorder:
+            padlist = self.padHolesBySize[padsize]
             count += 1
             self._progress_value_queue.put(count)
             if padsize[0]==0 and padsize[1]==0:
@@ -2517,7 +2581,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         for vindex,via in enumerate(self._vias):
             count += 1
             self._progress_value_queue.put(count)
-            for track in self._board.GetTracks():
+            for track in board.GetTracks():
                 trackvia = track.Cast_to_VIA()
                 if trackvia is not None: # is a via, skip
                     continue
@@ -2594,12 +2658,14 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         """Main function for getting information about Paste Layers on the current board.
            And calculates parameters useful for creating stencils including:
            (aperture ratio, area ratio, solder paste type/size)."""
+        board = pcbnew.GetBoard()
+           
         FailedAreaRatio = {}
         FailedAspectRatio = {}
         PadLayerNames, PadLayers = self.GetPadLayerNameNum()
         # get only pads on F.Paste layer
-        padnums = [padnum for padnum in range(self._board.GetPadCount()) \
-            if self._board.GetPad(padnum).IsOnLayer(self._layer_num_by_name["F.Paste"])]
+        padnums = [padnum for padnum in range(board.GetPadCount()) \
+            if board.GetPad(padnum).IsOnLayer(self._layer_num_by_name["F.Paste"])]
         AreaRange = {}
         AspectRange = {}
         AperturesBySize = {}
@@ -2660,7 +2726,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
             self._consoleText.AppendText("\n")
             footprints = set()
             for padnum in padlist:
-                p = self._board.GetPad(padnum)
+                p = board.GetPad(padnum)
                 footprints.add(p.GetParent().GetValue())
             self._consoleText.AppendText("\tPads: %s\n"%str(padlist))
             self._consoleText.AppendText("\tFrom: %s\n"%','.join(footprints))
@@ -2704,6 +2770,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
     #@deprecated
     def StencilInfo_old(self):
         """DEPRECATED"""
+        board = pcbnew.GetBoard()
         PadsByLayer = {}
         for padnum, layers in PadLayers.iteritems():
             for layer in layers:
@@ -2746,7 +2813,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         
         _consoleText.AppendText("W,L,AreaRatio,AspectRatioW,AspectRatioL\n")
         for padnum in PadsByLayer[self._layer_num_by_name["F.Paste"]]:
-            pad = self._board.GetPad(padnum)
+            pad = board.GetPad(padnum)
             Size = pad.GetSize()
             # get the final margin number (if local=0, get parent, etc.)
             #pad.GetSolderPasteMargin()
