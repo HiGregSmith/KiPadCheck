@@ -8,7 +8,7 @@
 # Fixed the 'Silk Slow Check' to incorporate text thickness and graphical item width
 # One step closer to working with nightly re: LAYER_ID_COUNT => PCB_LAYER_ID_COUNT
 #
-# Eliminate dependence on class variable _board.
+# Eliminate dependance on class variable _board.
 # Pad and drill lists not already ordered by number are ordered by area
 #
 # Original Author: Greg Smith, June-August 2017
@@ -1499,7 +1499,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
     #	PadLayerNames, PadLayers = GetPadLayerNameNum()
     def get_vias(self):
         """Get vias by filtering from _board.GetTracks()."""
-        return filter((lambda x: x.Cast_to_VIA()), pcbnew.GetBoard().GetTracks())
+        return filter(lambda x: isinstance(x,pcbnew.VIA), pcbnew.GetBoard().GetTracks())
         
     def GetViaLayerNameNum(self,vias=None):
         """Get the layer numbers that each via is on.
@@ -1813,11 +1813,11 @@ class KiPadCheck( pcbnew.ActionPlugin ):
            taking text object orientation and parent (if any) orientation."""
         # Box is given by
         try:
-            m=object.GetParent().Cast_to_MODULE()
+            m=object.GetParent()
             parentorientation = m.GetOrientation()
         except:
             parentorientation = 0.0
-        orientation = parentorientation+object.GetOrientation()
+        orientation = parentorientation+object.GetTextAngleDegrees()
         return self.get_corners_rotated_rect(
             object.GetTextBox().getWxRect(),
             object.GetCenter(),
@@ -2038,6 +2038,38 @@ class KiPadCheck( pcbnew.ActionPlugin ):
     def SilkInfo_Worker(self):
         """Main function for getting information about the Silk Layers on the current board.
            And executes basic silk-related DRC checks."""
+           
+                   # Fast check:
+        # mindist2=max
+        # intersecting? pad, text
+           # yes, mindist2=0
+
+        # if mindist2 <= minsilk^2:
+           # mindist2=max
+           # if thickness: draw
+           # for each stroke
+              # if intersecting stroke, pad
+                 # mindist2=0
+                 # break
+
+
+        # Slow check:
+
+        # mindist2=max
+        # if intersecting pad, text
+           # yes, mindist2=0
+        # else: (slow)
+           # mindist2=mindist2(pad,text)
+
+        # if mindist2 <= minsilk^2:
+           # mindist2=max
+           # if thickness: draw
+           # for each stroke
+              # if intersecting stroke, pad
+                 # mindist2=0
+                 # break
+              # else:
+                 
         # self._progress_value_queue.put(count)
         # self._console_text_queue.put(text)
         board = pcbnew.GetBoard()
@@ -2101,8 +2133,8 @@ class KiPadCheck( pcbnew.ActionPlugin ):
 
                 # orientation is specified ccw (leftward) from positive x-axis
                 if isinstance(t,pcbnew.TEXTE_MODULE):
-                    orientation = t.GetDrawRotation() \
-                                  - t.GetOrientation()
+                    orientation = t.GetDrawRotation()
+                    #              - t.GetOrientation() # not in nightly
                     #print t.GetText(), orientation
                     strokes_to_check[-1][-1] = self.get_rotated_vector(strokes_to_check[-1][-1],t.GetCenter(),orientation)
                     
@@ -2310,19 +2342,14 @@ class KiPadCheck( pcbnew.ActionPlugin ):
             
         Texts = []
         for drawing in pcbnew.GetBoard().GetDrawings():
-            text = drawing.Cast_to_TEXTE_PCB()
-            if text is None:
-                continue
-            Texts.append(text)
+            if isinstance(drawing,pcbnew.TEXTE_PCB):
+                Texts.append(drawing)
         for module in pcbnew.GetBoard().GetModules():
-            #for gi in module.GraphicalItems():
-            #	print gi.Type()
-            text = module.Value().Cast_to_TEXTE_MODULE()			
-            if text is not None:
-                Texts.append(text)
-            text = module.Reference().Cast_to_TEXTE_MODULE()
-            if text is not None:
-                Texts.append(text) 
+            Texts.append(module.Value())
+            Texts.append(module.Reference()) 
+            for gi in module.GraphicalItems():
+                if isinstance(gi,pcbnew.TEXTE_MODULE):
+                    Texts.append(gi) 
         if layer is not None:
             Texts = filter(lambda x:x.IsOnLayer(layer),Texts)
         return Texts
@@ -2582,8 +2609,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
             count += 1
             self._progress_value_queue.put(count)
             for track in board.GetTracks():
-                trackvia = track.Cast_to_VIA()
-                if trackvia is not None: # is a via, skip
+                if isinstance(track,pcbnew.VIA): # is a via, skip
                     continue
                 # Check if via and track are the same net. If so, skip
                 if via.GetNetname() == track.GetNetname():
