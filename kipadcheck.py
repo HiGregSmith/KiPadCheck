@@ -1439,7 +1439,9 @@ class KiPadCheck( pcbnew.ActionPlugin ):
             #sp.Disable()
             sizerbottom.Add(sp)
             sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mm) Outline Thickness (for debug)","ot",0.00))
-            cb = self.CreateLabeledCheckBox(panelbottom,"Silk Slow Check","sc")
+            cb = self.CreateLabeledCheckBox(panelbottom,"Silk Slow Check (off = check boundaries only)","sc")
+            sizerbottom.Add(cb)
+            cb = self.CreateLabeledCheckBox(panelbottom,"Draw All Outlines (debug)","dao")
             sizerbottom.Add(cb)
             #cb.Disable()
             #wx.CheckBox(panelbottom,wx.ID_ANY,name='oo', pos=wx.Point(300,300), initial=True,label="hello")
@@ -1812,12 +1814,19 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         """Return the non-orthogonal corner points of TEXTE_ object (either PCB or MODULE),
            taking text object orientation and parent (if any) orientation."""
         # Box is given by
-        try:
-            m=object.GetParent().Cast()
-            parentorientation = m.GetOrientation()
-        except:
-            parentorientation = 0.0
-        orientation = parentorientation+object.GetTextAngleDegrees()*10
+        if isinstance(object,pcbnew.TEXTE_MODULE):
+            orientation = \
+            object.GetDrawRotation()#\            
+            #-object.GetTextAngle()
+        else:
+            orientation = object.GetTextAngle()
+        
+        # try:
+            # m=object.GetParent().Cast()
+            # parentorientation = m.GetOrientation()
+        # except:
+            # parentorientation = 0.0
+        # orientation = parentorientation+object.GetTextAngleDegrees()*10
         
         return self.get_corners_rotated_rect(
             object.GetTextBox().getWxRect(),
@@ -1830,10 +1839,14 @@ class KiPadCheck( pcbnew.ActionPlugin ):
            Return the non-orthogonal corner points of pad object,
            taking object orientation and parent (if any) orientation."""
         # Box is given by
+        # Upper Left, width, height
+        size = object.GetSize()
+        upperleft = pcbnew.wxPoint(object.GetCenter().x-size.x/2.0,object.GetCenter().y-size.y/2.0)
         return self.get_corners_rotated_rect(
-            object.GetBoundingBox().getWxRect(),
+            pcbnew.wxRect(upperleft,size),
+            #object.GetBoundingBox().getWxRect(),
             object.GetCenter(),
-            0.0)#object.GetOrientation())
+            object.GetOrientation())#object.GetOrientation())
     def remove_drawings(self,layer):
         """Removes all drawings on specified layer from pcbnew.GetBoard()."""
         ds = pcbnew.GetBoard().GetDrawings()
@@ -2145,6 +2158,10 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                     
             textrect_to_check.append([])
             for text in texts_to_check[-1]:
+                if isinstance(text,pcbnew.TEXTE_MODULE):
+                    self._console_text_queue.put("%s %d %d %d\n"%(text.GetShownText(),text.GetDrawRotation(),t.GetTextAngle(),t.GetParent().Cast().GetOrientation()))
+                else:
+                    self._console_text_queue.put("%s %d\n"%(text.GetShownText(),t.GetTextAngle()))
                 textrect_to_check[-1].append(self.get_corners_rotated_text(text))
             # for text in strokes_to_check[-1]:
                 # wxPointUtil.convex_hull(strokes)
@@ -2152,10 +2169,10 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         USER_minsilkpadspacing = self._frame.FindWindowByName('sp').Value * pcbnew.IU_PER_MM
         USER_slow_check        = self._frame.FindWindowByName('sc').GetValue()
         USER_draw_outlines_thickness = self._frame.FindWindowByName('ot').Value # * pcbnew.IU_PER_MM
-        USER_draw_outlines = False # (USER_draw_outlines_thickness != 0)
+        USER_draw_all_outlines = self._frame.FindWindowByName('dao').GetValue()
         USER_draw_stroke_thickness   = USER_draw_outlines_thickness
         USER_draw_outlines_layer = pcbnew.Eco2_User
-        if USER_draw_outlines:
+        if USER_draw_all_outlines:
             for rects_to_check in (padrect_to_check, textrect_to_check):
                 for rects in rects_to_check:
                     for vertices in rects:
@@ -2998,19 +3015,3 @@ else:
 
 # register through Action Script when imported
 kpc.register()
-
-
-# gis = []
-# for m in pcbnew.GetBoard().GetModules():
-    # gis.append(m.Value())
-    # gis.append(m.Reference())
-    # for gi in m.GraphicalItems():
-        # gis.append(gi)
-# t = filter(lambda x: isinstance(x,pcbnew.TEXTE_MODULE),gis)
-# t = filter(lambda x: x.IsOnLayer(pcbnew.F_SilkS) or x.IsOnLayer(pcbnew.B_SilkS), t)
-
-# t.sort(key=lambda x: x.GetShownText())
-
-# print '\n'.join([str((t0.GetShownText(), t0.GetDrawRotation(), t0.GetTextAngle(), t0.GetParent().Cast().GetOrientation())) for t0 in t])
-
-# t0.GetParent().Cast().GetOrientation() - t0.GetDrawRotation()
