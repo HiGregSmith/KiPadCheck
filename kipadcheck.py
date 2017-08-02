@@ -1527,7 +1527,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
 
 
     def get_holes_by_layer(self):
-        """Get all the pads in a list ordered by pad number."""
+        """Get all the pads in a list ordered by layer."""
         board = pcbnew.GetBoard()
         holes = [board.GetPad(n) for n in range(board.GetPadCount()) if board.GetPad(n).GetDrillSize().x != 0 and board.GetPad(n).GetDrillSize().y != 0]
         holes.extend(self.get_vias())
@@ -1813,11 +1813,12 @@ class KiPadCheck( pcbnew.ActionPlugin ):
            taking text object orientation and parent (if any) orientation."""
         # Box is given by
         try:
-            m=object.GetParent()
+            m=object.GetParent().Cast()
             parentorientation = m.GetOrientation()
         except:
             parentorientation = 0.0
-        orientation = parentorientation+object.GetTextAngleDegrees()
+        orientation = parentorientation+object.GetTextAngleDegrees()*10
+        
         return self.get_corners_rotated_rect(
             object.GetTextBox().getWxRect(),
             object.GetCenter(),
@@ -1985,7 +1986,8 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         ds.SetStart(pcbnew.wxPoint(x1,y1))
         ds.SetEnd(pcbnew.wxPoint(x2,y2))
         ds.SetLayer(layer)
-        ds.SetWidth(int(thicknessmm*pcbnew.IU_PER_MM))
+        #print thicknessmm, thicknessmm*pcbnew.IU_PER_MM, int(thicknessmm*pcbnew.IU_PER_MM)
+        ds.SetWidth(max(1,int(thicknessmm*pcbnew.IU_PER_MM)))
 
     def SilkInfo(self,e):
     
@@ -1994,6 +1996,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         self._progress_stop = False
         if self.WorkerThread is not None and self.WorkerThread.is_alive():
             self.ProgressThreadFunction(self.WorkerThreadself)
+            print self._progress
             self._progress.SetValue(0)
             return
 
@@ -2016,6 +2019,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         done=sum([len(p) for p in pads_to_check])
         self._consoleText.AppendText("progress bar set to %d\n"%done)
         # initialize progress bar
+        print self._progress
         self._progress.SetRange(done)
 
         # Start up the worker thread
@@ -2133,8 +2137,9 @@ class KiPadCheck( pcbnew.ActionPlugin ):
 
                 # orientation is specified ccw (leftward) from positive x-axis
                 if isinstance(t,pcbnew.TEXTE_MODULE):
-                    orientation = t.GetDrawRotation()
-                    #              - t.GetOrientation() # not in nightly
+                    orientation = t.GetDrawRotation()\
+                                 -t.GetTextAngle() 
+                                  
                     #print t.GetText(), orientation
                     strokes_to_check[-1][-1] = self.get_rotated_vector(strokes_to_check[-1][-1],t.GetCenter(),orientation)
                     
@@ -2146,7 +2151,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                 
         USER_minsilkpadspacing = self._frame.FindWindowByName('sp').Value * pcbnew.IU_PER_MM
         USER_slow_check        = self._frame.FindWindowByName('sc').GetValue()
-        USER_draw_outlines_thickness = self._frame.FindWindowByName('ot').Value * pcbnew.IU_PER_MM
+        USER_draw_outlines_thickness = self._frame.FindWindowByName('ot').Value # * pcbnew.IU_PER_MM
         USER_draw_outlines = False # (USER_draw_outlines_thickness != 0)
         USER_draw_stroke_thickness   = USER_draw_outlines_thickness
         USER_draw_outlines_layer = pcbnew.Eco2_User
@@ -2993,3 +2998,19 @@ else:
 
 # register through Action Script when imported
 kpc.register()
+
+
+# gis = []
+# for m in pcbnew.GetBoard().GetModules():
+    # gis.append(m.Value())
+    # gis.append(m.Reference())
+    # for gi in m.GraphicalItems():
+        # gis.append(gi)
+# t = filter(lambda x: isinstance(x,pcbnew.TEXTE_MODULE),gis)
+# t = filter(lambda x: x.IsOnLayer(pcbnew.F_SilkS) or x.IsOnLayer(pcbnew.B_SilkS), t)
+
+# t.sort(key=lambda x: x.GetShownText())
+
+# print '\n'.join([str((t0.GetShownText(), t0.GetDrawRotation(), t0.GetTextAngle(), t0.GetParent().Cast().GetOrientation())) for t0 in t])
+
+# t0.GetParent().Cast().GetOrientation() - t0.GetDrawRotation()
