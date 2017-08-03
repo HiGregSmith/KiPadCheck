@@ -39,7 +39,7 @@
 
 # This python script provides additional basic DRC checks to KiCAD and lists
 # to make tweaking pads easier for drill compliance, silk compliance, and
-# stencil creation. It adds a menu item to "Tools" called kipadcheck which
+# stencil creation. It adds a menu item to "Tools" called KiPadCheck which
 # brings up a dialog for control.
 #
 # KiPadCheck
@@ -236,7 +236,7 @@ import random # for testing
 # howto-register-a-python-plugin-inside-pcbnew-tools-menu/
 # 5540/22
 
-
+# Perhaps this site can lead to some rule of thumb checks for vias:
 
 
  
@@ -1415,7 +1415,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
 
         else:
             # this will tie the 'Pads' window to pcbnew window
-            self._frame = wx.Frame(self._pcbnewWindow, title=windowName)
+            self._frame = wx.Frame(self._pcbnewWindow, title=windowName) #, size=wx.Size(400,400))
             paneltop = wx.Panel(self._frame)
             panelbottom = wx.Panel(self._frame)
             #sb1 = wx.StaticBox(panelbottom,label="mils1",size=wx.Size(300,300))
@@ -1438,10 +1438,10 @@ class KiPadCheck( pcbnew.ActionPlugin ):
             sp = self.CreateLabeledEntry(panelbottom,"(mm) Silk to Pad spacing","sp",0.0)
             #sp.Disable()
             sizerbottom.Add(sp)
-            sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mm) Outline Thickness (for debug)","ot",0.00))
             cb = self.CreateLabeledCheckBox(panelbottom,"Silk Slow Check (off = check boundaries only)","sc")
             sizerbottom.Add(cb)
-            cb = self.CreateLabeledCheckBox(panelbottom,"Draw All Outlines (debug)","dao")
+            sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mm) Outline Thickness (for debug, non-0 writes to Eco2)","ot",0.00))
+            cb = self.CreateLabeledCheckBox(panelbottom,"Draw All Outlines (debug, writes to Eco2)","dao")
             sizerbottom.Add(cb)
             #cb.Disable()
             #wx.CheckBox(panelbottom,wx.ID_ANY,name='oo', pos=wx.Point(300,300), initial=True,label="hello")
@@ -2158,14 +2158,18 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                     
             textrect_to_check.append([])
             for text in texts_to_check[-1]:
-                if isinstance(text,pcbnew.TEXTE_MODULE):
-                    self._console_text_queue.put("%s %d %d %d\n"%(text.GetShownText(),text.GetDrawRotation(),t.GetTextAngle(),t.GetParent().Cast().GetOrientation()))
-                else:
-                    self._console_text_queue.put("%s %d\n"%(text.GetShownText(),t.GetTextAngle()))
+                # if isinstance(text,pcbnew.TEXTE_MODULE):
+                    # self._console_text_queue.put("%s %d %d %d\n"%(text.GetShownText(),text.GetDrawRotation(),t.GetTextAngle(),t.GetParent().Cast().GetOrientation()))
+                # else:
+                    # self._console_text_queue.put("%s %d\n"%(text.GetShownText(),t.GetTextAngle()))
                 textrect_to_check[-1].append(self.get_corners_rotated_text(text))
             # for text in strokes_to_check[-1]:
                 # wxPointUtil.convex_hull(strokes)
                 
+        # Draw all outlines writes to Eco2:
+        # pad rectangles, text rectangles, text strokes with
+        # thickness specified by Outline Thickness
+        
         USER_minsilkpadspacing = self._frame.FindWindowByName('sp').Value * pcbnew.IU_PER_MM
         USER_slow_check        = self._frame.FindWindowByName('sc').GetValue()
         USER_draw_outlines_thickness = self._frame.FindWindowByName('ot').Value # * pcbnew.IU_PER_MM
@@ -2199,7 +2203,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                     #
                         
                     self.draw_vector(vector,
-                        layer=pcbnew.Eco1_User, #USER_draw_outlines_layer,
+                        layer=USER_draw_outlines_layer,
                         thickness=USER_draw_stroke_thickness)
 
         # We are basically testing objects in padrects to objects in textrects
@@ -2261,8 +2265,8 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                         intersect=False
                         #print len(vectors)
                         if USER_draw_outlines_thickness > 0:
-                            self.draw_vector(vectors,thickness=USER_draw_outlines_thickness)
-                            self.draw_polygon(pad,thickness=USER_draw_outlines_thickness)
+                            self.draw_vector(vectors,layer=USER_draw_outlines_layer,thickness=USER_draw_outlines_thickness)
+                            self.draw_polygon(pad,layer=USER_draw_outlines_layer,thickness=USER_draw_outlines_thickness)
                         for vindex in range(0,len(vectors)-1,2):                            
                             # does this stroke (vector[vindex]) intersect pad?
                             if wxPointUtil.check_polygons_intersecting((vectors[vindex],vectors[vindex+1]),pad,closed=False):
@@ -2334,6 +2338,10 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                         failed+=1
 
         self._console_text_queue.put("Checked: %d; Failed: %d\n"%(checked,failed))
+        if failed > 0:
+            self._console_text_queue.put("Objects failing check have been selected.\n")
+            self._console_text_queue.put("You may need to switch views (F9, F11, F12) to see the newly-selected objects.\n")
+
         return
 
     def GetAllDrawingsAndGraphicItemsByLayer(self):
@@ -2506,6 +2514,8 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                     len(holelist)))
         self._console_text_queue.put("\n\n***** Check hole separation by layer *****\n")
         mindist = 1000*pcbnew.IU_PER_MM
+        
+        totalfails = 0
         for layer, holelist in self.get_holes_by_layer().iteritems():
             fails = 0
             for i in range(len(holelist)-2):
@@ -2518,7 +2528,11 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                         holelist[i].SetSelected()
                         holelist[j].SetSelected()
                         fails += 1
+            totalfails += fails
             self._console_text_queue.put("Layer %s => %d errors:\n"%(board.GetLayerName(layer),fails))
+            if fails > 0:
+                self._console_text_queue.put("Objects failing check have been selected.\n")
+                self._console_text_queue.put("You may need to switch views (F9, F11, F12) to see the newly-selected objects.\n")
                      
             
         count = 0
@@ -2658,8 +2672,8 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                 MinimumViaTracknm = (1000000/1000)*MinimumViaTrackMils*25.4
                 if (abs(dist) > 1000) and (dist < MinimumViaTracknm):
                     if dist < 0:
-                        track.SetHighlighted()
-                        via.SetHighlighted()
+                        track.SetSelected()
+                        via.SetSelected()
                         #print v,s,e
                         #print "dist %d; reduced dist %d\n" \
                         #    %(DIST,DISTREDUCED),SavePrint
@@ -2677,10 +2691,15 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                     FailedTracks.add(track)
         for track in FailedTracks:
             track.SetSelected()
-        if len(FailedViaTracks) >0:
+        if len(FailedViaTracks) > 0:
             self._console_text_queue.put("\n\n***** Vias too close to track *****\n")
         for via,message in FailedViaTracks:
             self._console_text_queue.put("%d %s\n"%(via,message))
+            
+        if (len(FailedViaTracks) > 0) or (len(FailedTracks) > 0) or (len(FailedVias) > 0):
+            self._console_text_queue.put("Objects failing check have been selected.\n")
+            self._console_text_queue.put("You may need to switch views (F9, F11, F12) to see the newly-selected objects.\n")
+
         self._console_text_queue.put("\n  ***** DONE *****\n")	
         self._progress_stop = True
 
