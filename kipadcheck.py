@@ -51,7 +51,6 @@
 #
 # Preliminary support is included for more than 2 layers.
 # Pads are not verified for shape, currently assumes rectangle bounding box.
-# Assumes all pads are on the front.
 # Does not mix via drill and pad drill checks.
 # Does not check annular ring size.
 #
@@ -61,9 +60,18 @@
 #	Support more than just through drills (i.e. buried/blind self._vias).
 #   Label units and make consistent.
 #   Mask Info: Check solder mask dam sizes.
-#   Silk Info: Check silk screen character sizes.
 #   Check Annular Rings.
-#   Update progress bar when doing SilkInfo
+# TODO Check drill to Edge.Cut clearance.
+#
+# Consider adapting translation for descriptions:
+# https://ctrlq.org/code/19909-google-translate-api
+#
+# DONE Update progress bar when doing SilkInfo
+# DONE Silk Info: Check silk screen character sizes:
+#           Minimum Character Width(Legend)	0.15mm	Characters of less than 0.15mm wide will be too narrow to be identifiable.
+#           Minimum Character Height (Legend)	0.8mm	Characters of less than 0.8mm high will be too small to be recognizable.
+#           Character Width to Height Ratio (Legend)	1:5
+#
 #
 # Pad Info: Produces two lists: 
 #   1) detailed list of pads by footprint reference with paste/mask properties
@@ -237,7 +245,7 @@ import random # for testing
 # 5540/22
 
 # Perhaps this site can lead to some rule of thumb checks for vias:
-
+# https://www.eeweb.com/blog/eeweb/pcb-reliability-via-design1
 
  
     # ds = board.GetDesignSettings() 
@@ -585,9 +593,9 @@ class KiPadCheck( pcbnew.ActionPlugin ):
 
     def defaults( self ):
         """Support for ActionPlugins, though that is not working at the moment"""
-        self.name = "Check pads and related layers"
+        self.name = "KiPadCheck"
         self.category = "Check PCB"
-        self.description = "Check pads, holes, stencil apertures, and silkscreen"
+        self.description = "Check pads, holes, stencil apertures, mask, and silkscreen"
 
 
     def ProgressThreadFunction(self,WorkerThread):
@@ -1379,6 +1387,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         sbs.Add(sl)#(sbs.GetStaticBox(),wx.ID_ANY))
         sbs.Add(wx.StaticText(p, wx.ID_ANY,label=label))
         #sl.SetLabel="12.0"
+        sbs.Layout()
         return p
     def CreateLabeledCheckBox(self,parent,label="",name="",initial=False):
         """Create a CheckBox Control with label."""
@@ -1415,7 +1424,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
 
         else:
             # this will tie the 'Pads' window to pcbnew window
-            self._frame = wx.Frame(self._pcbnewWindow, title=windowName) #, size=wx.Size(400,400))
+            self._frame = wx.Frame(self._pcbnewWindow, size=wx.Size(50,50),title=windowName) #, size=wx.Size(400,400))
             paneltop = wx.Panel(self._frame)
             panelbottom = wx.Panel(self._frame)
             #sb1 = wx.StaticBox(panelbottom,label="mils1",size=wx.Size(300,300))
@@ -1429,6 +1438,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
             self._frame.SetSizer(sizerpanels)
             paneltop.SetSizer(sizertop)
             panelbottom.SetSizer(sizerbottom)
+            panelbottom.AutoSize = True
 
             self._progress = wx.Gauge(panelbottom,name="progress")
             sizerbottom.Add(self._progress)
@@ -1443,6 +1453,10 @@ class KiPadCheck( pcbnew.ActionPlugin ):
             sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mm) Outline Thickness (for debug, non-0 writes to Eco2)","ot",0.00))
             cb = self.CreateLabeledCheckBox(panelbottom,"Draw All Outlines (debug, writes to Eco2)","dao")
             sizerbottom.Add(cb)
+            sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mm) USER_silk_minimum_width","smw",0.15))
+            sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mm) USER_text_minimum_height","tmh",0.8))
+            sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"Minimum Text W/H = 1/[this value]","wtoh",5.0))
+            
             #cb.Disable()
             #wx.CheckBox(panelbottom,wx.ID_ANY,name='oo', pos=wx.Point(300,300), initial=True,label="hello")
             #sizerbottom.Add(sl)
@@ -1473,6 +1487,11 @@ class KiPadCheck( pcbnew.ActionPlugin ):
             panelbottom.Show()
             panelbottom.Update()
             panelbottom.Refresh()
+            self._frame.Layout()
+            self._frame.GetSizer().Layout()
+            panelbottom.Layout()
+            self._frame.Fit()
+            panelbottom.Fit()
 
         #self._layernums = [num for num in range(self.LAYERCOUNT) if not board.GetLayerName(num).startswith("In")]
         copperLayers = filter(
@@ -2131,7 +2150,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                 padrect_to_check[-1].append(self.get_corners_rotated_pad(pad))
 
         
-        # Get items to check on the silk layer (right now, just text)
+        # Get items to check on the silk layer: graphical items and text
         texts_to_check = []
         strokes_to_check = []
         textrect_to_check = []
@@ -2176,6 +2195,11 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         USER_draw_all_outlines = self._frame.FindWindowByName('dao').GetValue()
         USER_draw_stroke_thickness   = USER_draw_outlines_thickness
         USER_draw_outlines_layer = pcbnew.Eco2_User
+        USER_silk_minimum_width = self._frame.FindWindowByName('smw').Value * pcbnew.IU_PER_MM
+        USER_text_minimum_height = self._frame.FindWindowByName('tmh').Value * pcbnew.IU_PER_MM
+        # expressed as W/H > 1/minW2H, or W*minW2H > H
+        USER_text_minimum_WtoH = self._frame.FindWindowByName('wtoh').Value
+
         if USER_draw_all_outlines:
             for rects_to_check in (padrect_to_check, textrect_to_check):
                 for rects in rects_to_check:
@@ -2214,6 +2238,42 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         # These are the objects on F.Cu -> F.Silk and B.Cu -> B.Silk in all
         # combinations.
 
+        # Check text height, thickness, and aspect ratio
+        for items in texts_to_check:
+            for item in items:
+                w = item.GetThickness()
+                h = item.GetTextHeight()
+                fail = False
+                if w < USER_silk_minimum_width:
+                    self._console_text_queue.put("Text at %s too narrow\n"%(str(item.GetCenter())))
+                    fail = True
+                if h < USER_text_minimum_height:
+                    self._console_text_queue.put("Text at %s too short\n"%(str(item.GetCenter())))
+                    fail = True
+                # check w/h < 1/min
+                # expressed as fail if W/H < 1/minW2H, or W*minW2H < H
+                if (w * USER_text_minimum_WtoH) < h:
+                    self._console_text_queue.put("Text at %s too tall for specified width\n"%(str(item.GetCenter())))
+                    self._console_text_queue.put("Actual aspect = 1:%.2f (w*min)=%.1f; h=%d\n"%(float(h)/w,w*USER_text_minimum_WtoH,h))
+                    
+                    fail = True
+                if fail:
+                    item.SetSelected()
+                    fail = False
+        for items in graphicalitems_to_check:
+            for item in items:
+                try:
+                    w = item.GetWidth()
+                    #self._console_text_queue.put("Fail if  %s < %s\n"%(str(w),str(USER_silk_minimum_width)))
+                    if w < USER_silk_minimum_width:
+                        self._console_text_queue.put("Item at %s too narrow\n"%(str(item.GetCenter())))
+                        item.SetSelected()
+                except:
+                    # self._console_text_queue.put("GetWidth failed for %s\n"%(str(item)))
+                    pass
+            
+        # Check graphical item width
+        
         failed=0
         checked=0
         #print "Back",len(pads_to_check[pcbnew.B_SilkS]),len(texts_to_check[pcbnew.B_SilkS])
