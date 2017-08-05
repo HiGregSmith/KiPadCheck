@@ -1,76 +1,109 @@
 # kipadcheck.py
 #
-# Hopefully fixed nightly compatibility and some other improvements.
-# Removed references to pcbnew colors.
-# Disabled non-functional buttons on GUI.
-# Removed unused GeomPoint class.
-# Modified SilkInfo to work with progress bar.
-# Fixed the 'Silk Slow Check' to incorporate text thickness and graphical item width
-# One step closer to working with nightly re: LAYER_ID_COUNT => PCB_LAYER_ID_COUNT
-#
-# Eliminate dependance on class variable _board.
-# Pad and drill lists not already ordered by number are ordered by area
-#
+# KiPadCheck
+# https://github.com/HiGregSmith/KiPadCheck#
 # Original Author: Greg Smith, June-August 2017
 #
-# Naming conventions (from PEP8):
-    # Short python naming guide (from PEP8):
-
-    # ClassName
-    # function_name
-    # function_parameter
-    # parameter_disambiguation_
-    # variable_name
-    # _nonpublic_function
-    # _nonpublic_global_variable
-    # CONSTANT_VALUE_NAME
+# THERE ARE NO GUARANTEES THAT THE Design Rule Checks ARE 
+# COMPLETE OR THOROUGH. USE AT YOUR OWN RISK.
 #
-# This is beta. Not thoroughly tested.
+# ABOUT
 #
-# Inputs and outputs are in varying non-changable units (mils, inches, mm, nm)
-# Only tested on KiCAD 4.06, Windows 7.
+# KiPadCheck provides additional basic DRC checks to KiCAD and proviedes lists
+# to make tweaking pads easier for drill compliance, silk compliance, and
+# stencil creation. It adds a menu item to "Tools" called KiPadCheck which
+# brings up a dialog for control. Functions include pad list, drill list,
+# drill to drill spacing check, drill to track spacing check, stencil
+# aperture check vs. stencil thicknesses, stencil aperture width vs.
+# paste type, silk overlap of copper, text width/height/ratio, silk width.
 #
-# Install: In Windows, place file in 
+#   
+# INSTALLATION
+#
+# In Windows, place file in 
 # C:\Program Files\KiCad\share\kicad\scripting\plugins\kipadcheck.py
+# C:\Program Files\KiCad\share\kicad\scripting\plugins\kipadcheck_gui.py
 # In pcbnew, open scripting console (Tools > Scripting Console)
 # Type "import kipadcheck".
 #
-# ABOUT:
-
-# This python script provides additional basic DRC checks to KiCAD and lists
-# to make tweaking pads easier for drill compliance, silk compliance, and
-# stencil creation. It adds a menu item to "Tools" called KiPadCheck which
-# brings up a dialog for control.
+# If installed in the scripting/plugins folder, installation should occur
+# with Tools > External Plugins > Refresh Plugins.
+# Otherwise, type "import kipadcheck" in the Scripting Console.
+# This installs a menu item in Tools > External Plugins > KiPadCheck.
+# There's a little bit of weirdness that happens during development and
+# repeated loads and imports. There's an inconsistency between the menu items
+# Tools > KiPadCheck and Tools > External Plugins > KiPadCheck
+# Both should work.
 #
-# KiPadCheck
-# https://github.com/HiGregSmith/KiPadCheck
-
-# KiPadCheck provides additional basic DRC checks to KiCAD
-   # and lists to make tweaking pads for stencil creation easier. Functions include pad list, drill list, drill to drill spacing check, drill to track spacing check, stencil aperture check vs. stencil thicknesses, stencil aperture width vs. paste type, silk overlap of copper.
-# THERE ARE BUGS:
+# USE
+#
+# Selecting the KiPadCheck menu item brings up the Dialog for control of the
+# checks.
+#
+# Fill out the dimension information supplied by your PCB manufacturer to
+# check your layout against.
+#
+# The following entry items are used in the respective checks.
+#
+# Pad Info: Produces output on the KiCad console, no dialog entries used.
+# Stencil Info: Produces output on the KiCad console, no dialog entries used.
+# Drill Info: Produces output on the KiCad console, the following entries are used.
+#       Via to Via Spacing
+#       Via to Track spacing
+#       Drill to Edge spacing
+# Silk Info:  Produces output on the KiCad console, the following entries are used.
+# Silk to Pad spacing
+#       Silk Slow Check:
+#           Enables non-zero silk-to-pad check, and text stroke check.
+#           If disabled, will only check silk overlap of pad against
+#           bounding boxes of text.
+#       Outline Thickness:
+#           Will draw outlines on Eco2 layer of pads and text that are checked.
+#           Notably, text strokes are only checked if the text bounding box
+#           is close enough to require further checking.
+#       Draw All Outlines:
+#           Will draw all outlines of pads and text strokes with the specified
+#           Outline Thickness.
+#       Silk Minimum Width:
+#           The minimum line thickness on the silk layer for text and
+#           graphical items.
+#       Text Minimum Height:
+#           The minimum height of text on the silk layer.
+#       Minimum Text W/H:
+#           The ratio of text thickness divided by text height must be
+#           greater than 1 divided by the value in this entry.
+#           A typical value entered here would be "5" which would represent
+#           a W/H ratio of 1/5, or 0.2.
+#
+# BUGS
 #
 # Preliminary support is included for more than 2 layers.
 # Pads are not verified for shape, currently assumes rectangle bounding box.
 # Does not mix via drill and pad drill checks.
-# Does not check annular ring size.
 #
-# TODO list, aside from fixing the BUGS above.
+# TODO
+#
+#   Aside from fixing the BUGS above:
+#   Check annular ring size.
+#   Inputs and outputs are in varying non-changable units (mils, inches, mm, nm)
 #   Support all layers for all checks. Currently SilkInfo does check layers
 #      appropriately: F.Cu vs. F.SilkS and B.Cu vs. B.SilkS
 #	Support more than just through drills (i.e. buried/blind self._vias).
 #   Label units and make consistent.
 #   Mask Info: Check solder mask dam sizes.
 #   Check Annular Rings.
-# TODO Check drill to Edge.Cut clearance.
 #
 # Consider adapting translation for descriptions:
 # https://ctrlq.org/code/19909-google-translate-api
+#
+# COMPLETE
 #
 # DONE Update progress bar when doing SilkInfo
 # DONE Silk Info: Check silk screen character sizes:
 #           Minimum Character Width(Legend)	0.15mm	Characters of less than 0.15mm wide will be too narrow to be identifiable.
 #           Minimum Character Height (Legend)	0.8mm	Characters of less than 0.8mm high will be too small to be recognizable.
 #           Character Width to Height Ratio (Legend)	1:5
+# DONE Check drill to Edge.Cut clearance.
 #
 #
 # Pad Info: Produces two lists: 
@@ -154,7 +187,7 @@
 #      29
 #      44
 #      ...
-
+#
 #   6) Checks via drill to track clearance
 #      ***** Vias too close to track *****
 #      31 Via (/IOC_RB6) at (125934690, 138137006) is 306005 away from track
@@ -208,8 +241,38 @@
 #       	Failed Aspect: 0.445 0.225
 #       	Failed Aspect: 0.225 0.725
 #
+# HISTORY
 #
-# Nevertheless, there are some examples of using python code to interact
+# Hopefully fixed nightly compatibility and some other improvements.
+# Removed references to pcbnew colors.
+# Disabled non-functional buttons on GUI.
+# Removed unused GeomPoint class.
+# Modified SilkInfo to work with progress bar.
+# Fixed the 'Silk Slow Check' to incorporate text thickness and graphical item width
+# One step closer to working with nightly re: LAYER_ID_COUNT => PCB_LAYER_ID_COUNT
+#
+# Eliminate dependance on class variable _board.
+# Pad and drill lists not already ordered by number are ordered by area
+#
+# PROGRAMMING NOTES
+#
+# Naming conventions (from PEP8):
+    # Short python naming guide (from PEP8):
+
+    # ClassName
+    # function_name
+    # function_parameter
+    # parameter_disambiguation_
+    # variable_name
+    # _nonpublic_function
+    # _nonpublic_global_variable
+    # CONSTANT_VALUE_NAME
+#
+# pcbnew.Iu2Mils and pcbnew.Iu2DMils do not seem to work on Windows/ KiCad 4.06
+# Here, we use pcbnew.IU_PER_MILS and IU_PER_MM (not used: IU_PER_DECIMILS)
+# I cannot seem to figure out LSET structure. Workarounds are applied in code.
+#
+# There are some examples of using python code to interact
 # with KiCAD:
 #    Install Tools menu, replace if already existing
 #       (allows reloading python file after changes)
@@ -220,12 +283,6 @@
 #    Display  multi-threaded wx.Gauge (self._progress bar).
 #    Get Paste (stencil) Aperture size calculated from pad properties.
 #
-#
-
-# Programmer's Notes:
-# pcbnew.Iu2Mils and pcbnew.Iu2DMils do not seem to work on Windows/ KiCad 4.06
-# Here, we use pcbnew.IU_PER_MILS and IU_PER_MM (not used: IU_PER_DECIMILS)
-# I cannot seem to figure out LSET structure. Workarounds are applied in code.
 
 
 import time
@@ -238,6 +295,7 @@ import itertools
 import wx
 import pcbnew
 import random # for testing
+import kipadcheck_gui
 
 # Action Plugin information here:
 # https://forum.kicad.info/t/
@@ -279,7 +337,29 @@ import random # for testing
     #     parameters-now-available-online.php
     # 
     
+class gui (kipadcheck_gui.kipadcheck_gui):
+    kpc = None
+    def __init__(self, kpc, parent, *args, **kw):
+        super(gui,self).__init__(parent, *args, **kw)
+        kpc=kpc
+    def Pad(self,e):
+        kpc.PadInfo(e)
+    def Silk(self,e):
+        kpc.SilkInfo(e)
+    def Stencil(self,e):
+        kpc.StencilInfo(e)
+    def Drill(self,e):
+        kpc.DrillInfo(e)
 
+    def get_value_float(self,name):
+        value = None
+        try:
+            value = float(self.FindWindowByName(name).GetValue())
+        except ValueError:
+            pass
+            
+        return value
+        
 class wxPointUtil:
     """A variety of utilities and geometric calculations for
        operating on wxPoint objects. Will work on other objects with
@@ -592,28 +672,28 @@ class KiPadCheck( pcbnew.ActionPlugin ):
        which is written in the main GUI thread."""
 
     def defaults( self ):
-        """Support for ActionPlugins, though that is not working at the moment"""
+        """Support for ActionPlugins, though it doesn't work in 4.0.6 stable"""
         self.name = "KiPadCheck"
         self.category = "Check PCB"
         self.description = "Check pads, holes, stencil apertures, mask, and silkscreen"
 
 
-    def ProgressThreadFunction(self,WorkerThread):
+    def progress_thread_function(self,WorkerThread):
         value = self._progress.GetValue()
         while(WorkerThread.is_alive()):
         
             # take stuff from queue here
-            # take all you can, then call UpdateProgress
+            # take all you can, then call update_progress()
             while (not self._progress_value_queue.empty()):
                 value = self._progress_value_queue.get()
-            self.UpdateProgress(value)
+            self.update_progress(value)
             while (not self._console_text_queue.empty()):
                 self._consoleText.AppendText(self._console_text_queue.get())
             time.sleep(0.25)
         # process any remaining from the queues.
         while (not self._progress_value_queue.empty()):
             value = self._progress_value_queue.get()
-        self.UpdateProgress(value)
+        self.update_progress(value)
         while (not self._console_text_queue.empty()):
             self._consoleText.AppendText(self._console_text_queue.get())
 
@@ -1381,13 +1461,22 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         #sb1 = wx.StaticBox(panelbottom,label="mils1",size=wx.Size(300,300))
 
         sbs = wx.BoxSizer(wx.HORIZONTAL)
-        p.SetSizer(sbs)
-        #sbs = wx.StaticBoxSizer(p,wx.HORIZONTAL)
+        #p.SetSizer(sbs)
+        #sl = wx.SpinCtrlDouble(p,wx.ID_ANY,name=name,value=str(value), initial=value)
+        #sbs.Add(sl)
+        #sbs.Add(wx.StaticText(p, wx.ID_ANY,label=label))
+        #sbs.Layout()
+        
+        # aurabindo contrib:
         sl = wx.SpinCtrlDouble(p,wx.ID_ANY,name=name,value=str(value), initial=value)
-        sbs.Add(sl)#(sbs.GetStaticBox(),wx.ID_ANY))
-        sbs.Add(wx.StaticText(p, wx.ID_ANY,label=label))
-        #sl.SetLabel="12.0"
+        sl.SetSize(wx.Size(96, 47))
+        sbs.Add(sl, 0, wx.ALL | wx. EXPAND, 5)
+        sbs.Add(wx.StaticText(p, wx.ID_ANY,label=label), 0, wx.ALL | wx.EXPAND, 5)
+        sbs.AutoSize = True
+        sbs.Fit()
         sbs.Layout()
+        p.SetSizer(sbs)
+
         return p
     def CreateLabeledCheckBox(self,parent,label="",name="",initial=False):
         """Create a CheckBox Control with label."""
@@ -1405,6 +1494,9 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         #sl.SetLabel="12.0"
         return p
 
+    def create_panel(self):
+        p = wx.Panel(self._frame)
+        wx.GridBagSizer()
     def MenuItemPadInfo(self,e):
         """The main function called when the menu item is selected.
            This function displays the Dialog for providing parameters and executing
@@ -1424,74 +1516,79 @@ class KiPadCheck( pcbnew.ActionPlugin ):
 
         else:
             # this will tie the 'Pads' window to pcbnew window
-            self._frame = wx.Frame(self._pcbnewWindow, size=wx.Size(50,50),title=windowName) #, size=wx.Size(400,400))
-            paneltop = wx.Panel(self._frame)
-            panelbottom = wx.Panel(self._frame)
-            #sb1 = wx.StaticBox(panelbottom,label="mils1",size=wx.Size(300,300))
-            #sb2 = wx.StaticBox(panelbottom,label="mils2",size=wx.Size(300,300))
-            sizertop = wx.BoxSizer(wx.HORIZONTAL)
-            sizerbottom = wx.BoxSizer(wx.VERTICAL)
-            sizerpanels = wx.BoxSizer(wx.VERTICAL)
-            sizerpanels.Add(paneltop)
-            sizerpanels.Add(panelbottom)
+            self._frame = gui(self,parent=self._pcbnewWindow)
+            self._progress = self._frame.FindWindowByName('progress')
+            #self._frame = wx.Frame(self._pcbnewWindow, size=wx.Size(50,50),title=windowName) #, size=wx.Size(400,400))
+            # paneltop = wx.Panel(self._frame)
+            # panelbottom = wx.Panel(self._frame)
+            # #sb1 = wx.StaticBox(panelbottom,label="mils1",size=wx.Size(300,300))
+            # #sb2 = wx.StaticBox(panelbottom,label="mils2",size=wx.Size(300,300))
+            # sizertop = wx.BoxSizer(wx.HORIZONTAL)
+            # sizerbottom = wx.BoxSizer(wx.VERTICAL)
+            # sizerpanels = wx.BoxSizer(wx.VERTICAL)
+            # sizerpanels.Add(paneltop)
+            # sizerpanels.Add(panelbottom)
 
-            self._frame.SetSizer(sizerpanels)
-            paneltop.SetSizer(sizertop)
-            panelbottom.SetSizer(sizerbottom)
-            panelbottom.AutoSize = True
+            # self._frame.SetSizer(sizerpanels)
+            # paneltop.SetSizer(sizertop)
+            # panelbottom.SetSizer(sizerbottom)
+            # panelbottom.AutoSize = True
 
-            self._progress = wx.Gauge(panelbottom,name="progress")
-            sizerbottom.Add(self._progress)
+            # self._progress = wx.Gauge(panelbottom,name="progress")
+            # #sizerbottom.Add(self._progress)
+            # # aurabindo contrib:
+            # sizerbottom.Add(self._progress, 0, wx.ALL | wx.EXPAND, 0)
             
-            sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mil) Via to Via spacing","vv",12.0))
-            sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mil) Via to Track spacing","vt",12.0))
-            sp = self.CreateLabeledEntry(panelbottom,"(mm) Silk to Pad spacing","sp",0.0)
-            #sp.Disable()
-            sizerbottom.Add(sp)
-            cb = self.CreateLabeledCheckBox(panelbottom,"Silk Slow Check (off = check boundaries only)","sc")
-            sizerbottom.Add(cb)
-            sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mm) Outline Thickness (for debug, non-0 writes to Eco2)","ot",0.00))
-            cb = self.CreateLabeledCheckBox(panelbottom,"Draw All Outlines (debug, writes to Eco2)","dao")
-            sizerbottom.Add(cb)
-            sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mm) USER_silk_minimum_width","smw",0.15))
-            sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mm) USER_text_minimum_height","tmh",0.8))
-            sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"Minimum Text W/H = 1/[this value]","wtoh",5.0))
+            # sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mil) Via to Via spacing","vv",12.0))
+            # sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mil) Via to Track spacing","vt",12.0))
+            # sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mm) Drill to Edge spacing","dtoe",3.0))
+            # sp = self.CreateLabeledEntry(panelbottom,"(mm) Silk to Pad spacing","sp",0.0)
+            # #sp.Disable()
+            # sizerbottom.Add(sp)
+            # cb = self.CreateLabeledCheckBox(panelbottom,"Silk Slow Check (off = check boundaries only)","sc")
+            # sizerbottom.Add(cb)
+            # sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mm) Outline Thickness (for debug, non-0 writes to Eco2)","ot",0.00))
+            # cb = self.CreateLabeledCheckBox(panelbottom,"Draw All Outlines (debug, writes to Eco2)","dao")
+            # sizerbottom.Add(cb)
+            # sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mm) USER_silk_minimum_width","smw",0.15))
+            # sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mm) USER_text_minimum_height","tmh",0.8))
+            # sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"Minimum Text W/H = 1/[this value]","wtoh",5.0))
             
-            #cb.Disable()
-            #wx.CheckBox(panelbottom,wx.ID_ANY,name='oo', pos=wx.Point(300,300), initial=True,label="hello")
-            #sizerbottom.Add(sl)
+            # #cb.Disable()
+            # #wx.CheckBox(panelbottom,wx.ID_ANY,name='oo', pos=wx.Point(300,300), initial=True,label="hello")
+            # #sizerbottom.Add(sl)
             
-            self._frame.SetSizer(sizerpanels)
-            #    self.paneltop.SetSizer(sizer)
-            #self._frame.SetAutoLayout(True)
-            b_padlist = wx.Button(paneltop,label="Pad List")
-            b_padlist.Bind(wx.EVT_BUTTON, self.PadInfo)
+            # self._frame.SetSizer(sizerpanels)
+            # #    self.paneltop.SetSizer(sizer)
+            # #self._frame.SetAutoLayout(True)
+            # b_padlist = wx.Button(paneltop,label="Pad List")
+            # b_padlist.Bind(wx.EVT_BUTTON, self.PadInfo)
             
-            b_drillinfo = wx.Button(
-                paneltop, label="Drill Info", pos=wx.Point(50,50))
-            b_drillinfo.Bind(wx.EVT_BUTTON, self.DrillInfo)
+            # b_drillinfo = wx.Button(
+                # paneltop, label="Drill Info", pos=wx.Point(50,50))
+            # b_drillinfo.Bind(wx.EVT_BUTTON, self.DrillInfo)
             
-            b_stencilinfo = wx.Button(
-                paneltop, label="Stencil Info", pos=wx.Point(100,100))
-            b_stencilinfo.Bind(wx.EVT_BUTTON, self.StencilInfo)
+            # b_stencilinfo = wx.Button(
+                # paneltop, label="Stencil Info", pos=wx.Point(100,100))
+            # b_stencilinfo.Bind(wx.EVT_BUTTON, self.StencilInfo)
 
-            b_silkinfo = wx.Button(
-                paneltop, label="Silk Info")	
-            b_silkinfo.Bind(wx.EVT_BUTTON, self.SilkInfo)
+            # b_silkinfo = wx.Button(
+                # paneltop, label="Silk Info")	
+            # b_silkinfo.Bind(wx.EVT_BUTTON, self.SilkInfo)
 
-            sizertop.Add(b_padlist)
-            sizertop.Add(b_drillinfo)
-            sizertop.Add(b_stencilinfo)
-            sizertop.Add(b_silkinfo)
-            panelbottom.Hide()
-            panelbottom.Show()
-            panelbottom.Update()
-            panelbottom.Refresh()
-            self._frame.Layout()
-            self._frame.GetSizer().Layout()
-            panelbottom.Layout()
-            self._frame.Fit()
-            panelbottom.Fit()
+            # sizertop.Add(b_padlist)
+            # sizertop.Add(b_drillinfo)
+            # sizertop.Add(b_stencilinfo)
+            # sizertop.Add(b_silkinfo)
+            # panelbottom.Hide()
+            # panelbottom.Show()
+            # panelbottom.Update()
+            # panelbottom.Refresh()
+            # self._frame.Layout()
+            # self._frame.GetSizer().Layout()
+            # panelbottom.Layout()
+            # self._frame.Fit()
+            # panelbottom.Fit()
 
         #self._layernums = [num for num in range(self.LAYERCOUNT) if not board.GetLayerName(num).startswith("In")]
         copperLayers = filter(
@@ -1547,21 +1644,26 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         return d
 
 
-    def get_holes_by_layer(self):
-        """Get all the pads in a list ordered by layer."""
+    def get_pad_holes_and_vias(self):
         board = pcbnew.GetBoard()
         holes = [board.GetPad(n) for n in range(board.GetPadCount()) if board.GetPad(n).GetDrillSize().x != 0 and board.GetPad(n).GetDrillSize().y != 0]
         holes.extend(self.get_vias())
-        
-        holes_by_layer = {}
+        return holes
+    def objects_by_layer(self, objects):
+        returnval = {}
         for layernum in self._layernums:
-            hs = filter ( lambda x: x.IsOnLayer(layernum), holes )
+            hs = filter ( lambda x: x.IsOnLayer(layernum), objects )
             if len(hs):
-                holes_by_layer[layernum] = hs 
-        return holes_by_layer
+                returnval[layernum] = hs 
+        return returnval
+
+    def get_holes_by_layer(self):
+        """Get all the pads in a list ordered by layer."""
+        return self.objects_by_layer(self.get_pad_holes_and_vias())
 
     def GetAllHolesByLayer(self):
-        """Returns a dictionary with layer number as key, and a list of
+        """DEPRECATED
+           Returns a dictionary with layer number as key, and a list of
            all drill holes (those from vias and pads)."""
         # self._layernums = [num for num in range(self.LAYERCOUNT) if not board.GetLayerName(num).startswith("In")]
         # self._layernums = range(self.LAYERCOUNT)
@@ -2027,7 +2129,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         # If so, return.
         self._progress_stop = False
         if self.WorkerThread is not None and self.WorkerThread.is_alive():
-            self.ProgressThreadFunction(self.WorkerThreadself)
+            self.progress_thread_function(self.WorkerThreadself)
             print self._progress
             self._progress.SetValue(0)
             return
@@ -2063,7 +2165,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         self.WorkerThread.start()
         # Start the progress thread that updates the progress bar
         # and console text
-        self.ProgressThreadFunction(self.WorkerThread)
+        self.progress_thread_function(self.WorkerThread)
         
         # Finalize by making sure the worker thread is complete,
         # Then reset the progress bar.
@@ -2109,13 +2211,9 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         # self._progress_value_queue.put(count)
         # self._console_text_queue.put(text)
         board = pcbnew.GetBoard()
-        sp = self._frame.FindWindowByName('vv')
-        MinimumSilkToPadMils = sp.Value
-        MinimumSilkToPadMils = 0
-
         
-        Texts = self.GetTextObjects()
-        GraphicalItems = self.GetAllDrawingsAndGraphicItemsByLayer()
+        Texts = self.get_text_objects()
+        GraphicalItems = self.get_all_drawings_and_graphic_items_by_layer()
         
         # Texts = filter(lambda x:x.GetText()=='Elegant Computer Design',Texts)
         # Texts = filter(lambda x:x.GetText()=='I',Texts)
@@ -2189,16 +2287,19 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         # pad rectangles, text rectangles, text strokes with
         # thickness specified by Outline Thickness
         
-        USER_minsilkpadspacing = self._frame.FindWindowByName('sp').Value * pcbnew.IU_PER_MM
+        USER_minsilkpadspacing = (self._frame.get_value_float('sp') or 0.0) * pcbnew.IU_PER_MM
         USER_slow_check        = self._frame.FindWindowByName('sc').GetValue()
-        USER_draw_outlines_thickness = self._frame.FindWindowByName('ot').Value # * pcbnew.IU_PER_MM
-        USER_draw_all_outlines = self._frame.FindWindowByName('dao').GetValue()
+
+        USER_draw_outlines_thickness = (self._frame.get_value_float('ot') or 0.0)
+        USER_draw_all_outlines = (self._frame.get_value_float('dao') or 0.0)
+        USER_silk_minimum_width = (self._frame.get_value_float('smw') or 0.0) * pcbnew.IU_PER_MM
+        USER_text_minimum_height = (self._frame.get_value_float('tmh') or 0.0) * pcbnew.IU_PER_MM
+        # expressed as W/H > 1/minW2H, or W*minW2H > H
+        USER_text_minimum_WtoH = (self._frame.get_value_float('wtoh') or 0.0)
+
         USER_draw_stroke_thickness   = USER_draw_outlines_thickness
         USER_draw_outlines_layer = pcbnew.Eco2_User
-        USER_silk_minimum_width = self._frame.FindWindowByName('smw').Value * pcbnew.IU_PER_MM
-        USER_text_minimum_height = self._frame.FindWindowByName('tmh').Value * pcbnew.IU_PER_MM
-        # expressed as W/H > 1/minW2H, or W*minW2H > H
-        USER_text_minimum_WtoH = self._frame.FindWindowByName('wtoh').Value
+        
 
         if USER_draw_all_outlines:
             for rects_to_check in (padrect_to_check, textrect_to_check):
@@ -2404,7 +2505,28 @@ class KiPadCheck( pcbnew.ActionPlugin ):
 
         return
 
+    def is_on_any_layer(self,object,layerlist):
+        """returns true if object is on any layer in the iterable layerlist"""
+        for layer in layerlist:
+            if object.IsOnLayer(layer):
+                return True
+        return False
+        
+    def get_all_drawings_and_graphic_items(self,layerlist=None):
+        items = [d for d in pcbnew.GetBoard().GetDrawings()]
+        for m in pcbnew.GetBoard().GetModules():
+            items.extend([g for g in m.GraphicalItems()])
+        
+        if layerlist is not None:
+            items = filter(lambda x:self.is_on_any_layer(x,layerlist),items)
+
+        return items
+        
+    def get_all_drawings_and_graphic_items_by_layer(self):
+        return self.objects_by_layer(self.get_all_drawings_and_graphic_items())
+        
     def GetAllDrawingsAndGraphicItemsByLayer(self):
+        """DEPRECATED - Use get_all_drawings_and_graph_items_by_layer"""
         items = [d for d in pcbnew.GetBoard().GetDrawings()]
         for m in pcbnew.GetBoard().GetModules():
             items.extend([g for g in m.GraphicalItems()])
@@ -2416,8 +2538,8 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                     itemsByLayer.setdefault(layernum,[]).append(i)
         return itemsByLayer
 
-    def DrawAllGraphicItems(self):
-        itemsByLayer = GetAllDrawingsAndGraphicItemsByLayer()
+    def draw_all_graphic_items(self):
+        itemsByLayer = self.get_all_drawings_and_graphic_items_by_layer()
         silkdrawsegments = filter(lambda x: isinstance(x,pcbnew.DRAWSEGMENT),itemsByLayer[pcbnew.F_SilkS])
         for i in silkdrawsegments:
             self.draw_segment(i.GetStart().x,i.GetStart().y,i.GetEnd().x,i.GetEnd().y,layer=pcbnew.Eco1_User)
@@ -2425,7 +2547,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         print [(pcbnew.GetBoard().GetLayerName(layer),len(itemsByLayer[layer])) for layer in itemsByLayer.keys()]
         print [i.GetShapeStr() for i in silkdrawsegments]
 
-    def GetTextObjects(self,layer=None):
+    def get_text_objects(self,layer=None):
         """Gets all the text objects, those on the main board and those within
            modules. If specified, the text objects are filtered to return only
            those text objects on the indicated layer."""
@@ -2444,9 +2566,9 @@ class KiPadCheck( pcbnew.ActionPlugin ):
             Texts = filter(lambda x:x.IsOnLayer(layer),Texts)
         return Texts
         
-    def TextStroke(self):
+    def text_stroke(self):
         """Draw all text object strokes on layer Eco2_User with thickness 0.075."""
-        tobjects = self.GetTextObjects()
+        tobjects = self.get_text_objects()
         vectors = pcbnew.wxPoint_Vector(0)
         for t in tobjects:
             t.TransformTextShapeToSegmentList(vectors)
@@ -2459,7 +2581,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
             vectors.clear()
            
 
-    def UpdateProgress(self,count):
+    def update_progress(self,count):
         """Updated the GUI progress bar to the indicated value.
         (Sleep an arbitrary amount of time (100ms) to allow GUI update."""
         self._progress.SetValue(count)
@@ -2480,7 +2602,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         board = pcbnew.GetBoard()
         self._progress_stop = False
         if self.WorkerThread is not None and self.WorkerThread.is_alive():
-            self.ProgressThreadFunction(self.WorkerThreadself)
+            self.progress_thread_function(self.WorkerThreadself)
             self._progress.SetValue(0)
             return
 
@@ -2500,7 +2622,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
             args=(), 
             kwargs={})#, daemon=False)#, *, daemon=None)
         self.WorkerThread.start()
-        self.ProgressThreadFunction(self.WorkerThread)
+        self.progress_thread_function(self.WorkerThread)
         self.WorkerThread.join()
         self._progress.SetValue(0)
         
@@ -2511,16 +2633,52 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         # to update the GUI
         
         board = pcbnew.GetBoard()
-        vv = self._frame.FindWindowByName('vv')
-        vt = self._frame.FindWindowByName('vt')
-        MinimumViaViaMils = vv.Value
-        MinimumViaTrackMils = vt.Value
+
+        MinimumViaViaMils = (self._frame.get_value_float('vv') or 0.0)
+        MinimumViaTrackMils = (self._frame.get_value_float('vt') or 0.0)
+        
+        print type(MinimumViaViaMils)
         MinimumViaVia = MinimumViaViaMils*pcbnew.IU_PER_MILS
+        
         self._console_text_queue.put(
             "\n\n***** Quantity of holes by layer and size *****\n")
-        self._console_text_queue.put("Layers: %s\n"%(str(self.GetAllHolesByLayer().keys())))
+        self._console_text_queue.put("Layers: %s\n"%(str(self.get_holes_by_layer().keys())))
         
-        allHolesByLayer = self.GetAllHolesByLayer()
+        self._console_text_queue.put("Testing holes near edge (only straight line edge cuts are checked!)\n")
+        allholes = self.get_pad_holes_and_vias()
+        edgecut_items = self.get_all_drawings_and_graphic_items(layerlist=(pcbnew.Edge_Cuts,))
+
+        USER_drill_to_edge = (self._frame.get_value_float('dtoe') or 0.0) * pcbnew.IU_PER_MM
+        
+        edgefail = 0
+        
+        for item in edgecut_items:
+            if not isinstance(item,pcbnew.DRAWSEGMENT):
+                continue
+            if item.GetShapeStr() != "Line":
+                self._console_text_queue.put("Shape '%s' at %s not checked.\n"%(item.GetShapeStr(),str(item.GetCenter())))
+
+            for hole in allholes:
+                try:
+                    d = hole.GetDrillSize()
+                except:
+                    d = hole.GetDrillValue()
+                    d = (d,d)
+                if d[0] == 0.0 or d[1] == 0.0:
+                    continue
+                c = hole.GetCenter()
+                dist = wxPointUtil.mindistance(c,item.GetStart(),item.GetEnd())
+                if (dist - d[0]) <  USER_drill_to_edge:
+                    self._console_text_queue.put("Hole at %s too close to edge\n"%(str(hole.GetCenter())))
+                    hole.SetSelected()
+                    item.SetSelected()
+                    edgefail += 1
+
+        if edgefail > 0:
+            self._console_text_queue.put("Objects failing check have been selected.\n")
+            self._console_text_queue.put("You may need to switch views (F9, F11, F12) to see the newly-selected objects.\n")
+
+        allHolesByLayer = self.objects_by_layer(allholes)
         for layer, holelist in allHolesByLayer.iteritems():
             IsOrIsNot = []
             if pcbnew.IsCopperLayer(layer):
