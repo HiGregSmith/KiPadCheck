@@ -1381,13 +1381,14 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         #sb1 = wx.StaticBox(panelbottom,label="mils1",size=wx.Size(300,300))
 
         sbs = wx.BoxSizer(wx.HORIZONTAL)
-        p.SetSizer(sbs)
         #sbs = wx.StaticBoxSizer(p,wx.HORIZONTAL)
-        sl = wx.SpinCtrlDouble(p,wx.ID_ANY,name=name,value=str(value), initial=value)
-        sbs.Add(sl)#(sbs.GetStaticBox(),wx.ID_ANY))
-        sbs.Add(wx.StaticText(p, wx.ID_ANY,label=label))
+        sl = wx.SpinCtrlDouble(p,wx.ID_ANY,size = wx.Size(96, 47),name=name,value=str(value), initial=value)
+        sbs.Add(sl, 0, wx.ALL | wx. EXPAND, 5)#(sbs.GetStaticBox(),wx.ID_ANY))
+        sbs.Add(wx.StaticText(p, wx.ID_ANY,label=label), 0, wx.ALL | wx.EXPAND, 5)
         #sl.SetLabel="12.0"
+        sbs.AutoSize = True
         sbs.Layout()
+        p.SetSizer(sbs)
         return p
     def CreateLabeledCheckBox(self,parent,label="",name="",initial=False):
         """Create a CheckBox Control with label."""
@@ -1441,7 +1442,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
             panelbottom.AutoSize = True
 
             self._progress = wx.Gauge(panelbottom,name="progress")
-            sizerbottom.Add(self._progress)
+            sizerbottom.Add(self._progress, 0, wx.ALL | wx.EXPAND, 0)
             
             sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mil) Via to Via spacing","vv",12.0))
             sizerbottom.Add(self.CreateLabeledEntry(panelbottom,"(mil) Via to Track spacing","vt",12.0))
