@@ -1,7 +1,7 @@
 # kipadcheck.py
 #
 # KiPadCheck
-# https://github.com/HiGregSmith/KiPadCheck#
+# https://github.com/HiGregSmith/KiPadCheck
 # Original Author: Greg Smith, June-August 2017
 #
 # THERE ARE NO GUARANTEES THAT THE Design Rule Checks ARE 
@@ -41,7 +41,8 @@
 # checks.
 #
 # Fill out the dimension information supplied by your PCB manufacturer to
-# check your layout against.
+# check your layout against. You can enter the units along with the number and
+# KiPadCheck will recognize the units appropriately.
 #
 # The following entry items are used in the respective checks.
 #
@@ -51,19 +52,18 @@
 #       Via to Via Spacing
 #       Via to Track spacing
 #       Drill to Edge spacing
+#       Drill Minimum
+#       Drill Maximum
+#       Drill Set
 # Silk Info:  Produces output on the KiCad console, the following entries are used.
-# Silk to Pad spacing
+#       Silk to Pad spacing:
+#           Spacing between items on silk layers and pad copper.
 #       Silk Slow Check:
 #           Enables non-zero silk-to-pad check, and text stroke check.
 #           If disabled, will only check silk overlap of pad against
 #           bounding boxes of text.
-#       Outline Thickness:
-#           Will draw outlines on Eco2 layer of pads and text that are checked.
-#           Notably, text strokes are only checked if the text bounding box
+#           Note that text strokes are only checked if the text bounding box
 #           is close enough to require further checking.
-#       Draw All Outlines:
-#           Will draw all outlines of pads and text strokes with the specified
-#           Outline Thickness.
 #       Silk Minimum Width:
 #           The minimum line thickness on the silk layer for text and
 #           graphical items.
@@ -74,30 +74,37 @@
 #           greater than 1 divided by the value in this entry.
 #           A typical value entered here would be "5" which would represent
 #           a W/H ratio of 1/5, or 0.2.
-#
-# BUGS
-#
-# Preliminary support is included for more than 2 layers.
-# Pads are not verified for shape, currently assumes rectangle bounding box.
-# Does not mix via drill and pad drill checks.
+#       DEBUG OPTIONS
+#       Outline Thickness:
+#           Will draw outlines on Eco2 layer of pads and text that are checked.
+#           Note that text strokes are only checked if the text bounding box
+#           is close enough to require further checking.
+#       Draw All Outlines:
+#           Will draw all outlines of pads and text strokes with the specified
+#           Outline Thickness.
 #
 # TODO
-#
-#   Aside from fixing the BUGS above:
+#   Support layers appropriately for all checks. Currently SilkInfo does
+#      check layers appropriately: F.Cu vs. F.SilkS and B.Cu vs. B.SilkS.
+#      Other checks may only support 2 layers or may incorrectly check all
+#      layers, including those that don't make sense (e.g. F.SilkS vs. B.Cu).
+#   Support non-rectangular pads. Currently checks only rectangle bounding box.
+#   Handle pad drill vs. via drill appropriately.
 #   Check annular ring size.
-#   Inputs and outputs are in varying non-changable units (mils, inches, mm, nm)
-#   Support all layers for all checks. Currently SilkInfo does check layers
-#      appropriately: F.Cu vs. F.SilkS and B.Cu vs. B.SilkS
+#   Outputs are in varying non-changable units (mils, inches, mm, nm)
+#   Label output units and make consistent.
 #	Support more than just through drills (i.e. buried/blind self._vias).
-#   Label units and make consistent.
-#   Mask Info: Check solder mask dam sizes.
+#   Mask Info: Check solder mask dam sizes (i.e. "Mask spacing.")
 #   Check Annular Rings.
-#
-# Consider adapting translation for descriptions:
-# https://ctrlq.org/code/19909-google-translate-api
+#   Allow reading/writing from dru file, then:
+#       Consider adapting translation for descriptions:
+#       https://ctrlq.org/code/19909-google-translate-api
 #
 # COMPLETE
 #
+# DONE Allow changing drill sets
+# DONE Allow changing Debug Layer
+# DONE Allow changing input units
 # DONE Update progress bar when doing SilkInfo
 # DONE Silk Info: Check silk screen character sizes:
 #           Minimum Character Width(Legend)	0.15mm	Characters of less than 0.15mm wide will be too narrow to be identifiable.
@@ -257,16 +264,16 @@
 # PROGRAMMING NOTES
 #
 # Naming conventions (from PEP8):
-    # Short python naming guide (from PEP8):
+#       Short python naming guide (from PEP8):
 
-    # ClassName
-    # function_name
-    # function_parameter
-    # parameter_disambiguation_
-    # variable_name
-    # _nonpublic_function
-    # _nonpublic_global_variable
-    # CONSTANT_VALUE_NAME
+#       ClassName
+#       function_name
+#       function_parameter
+#       parameter_disambiguation_
+#       variable_name
+#       _nonpublic_function
+#       _nonpublic_global_variable
+#       CONSTANT_VALUE_NAME
 #
 # pcbnew.Iu2Mils and pcbnew.Iu2DMils do not seem to work on Windows/ KiCad 4.06
 # Here, we use pcbnew.IU_PER_MILS and IU_PER_MM (not used: IU_PER_DECIMILS)
@@ -339,9 +346,45 @@ import kipadcheck_gui
     
 class gui (kipadcheck_gui.kipadcheck_gui):
     kpc = None
-    def __init__(self, kpc, parent, *args, **kw):
+    def __init__(self, kpc, parent,
+        layer_names=None,
+        drillset_names=None,
+        *args, **kw):
+        
         super(gui,self).__init__(parent, *args, **kw)
         kpc=kpc
+        
+        # fill any list box named *_layers with the layer names
+        #print ', '.join([w.GetName() for w in windows])
+        # First, get all the windows within gui
+        if layer_names is not None:
+            windows = [w for w in self.GetChildren()]
+            i = 0
+            while ( i < len(windows) ):
+                try:
+                    windows.extend([w for w in windows[i].GetChildren()])
+                except:
+                    pass
+                i += 1
+            # Get all windows that end in '_layers'
+            layer_windows = filter(lambda x: x.GetName().endswith('_layers'),windows)
+            # setitems of all *_layers windows with the layer names
+            for window in layer_windows:
+                try:
+                    window.SetItems(layer_names)
+                    
+                    # right now, just force the selection to be Eco2.
+                    # we can organize this later to allow different defaults
+                    # for different controls (i.e. dict value by window name)
+                    window.SetSelection(layer_names.index('Eco2.User'))
+                except:
+                    pass
+        # Initialize Drill Set
+        if drillset_names is not None:
+            drillsetcontrol = filter(lambda x: x.GetName() == 'drillset' ,windows)[0]
+            drillsetcontrol.SetItems(drillset_names)
+            drillsetcontrol.SetSelection(0)
+        
     def Pad(self,e):
         kpc.PadInfo(e)
     def Silk(self,e):
@@ -352,13 +395,50 @@ class gui (kipadcheck_gui.kipadcheck_gui):
         kpc.DrillInfo(e)
 
     def get_value_float(self,name):
-        value = None
-        try:
-            value = float(self.FindWindowByName(name).GetValue())
-        except ValueError:
-            pass
+        # parse the entered value for value and units.
+        input_string = self.FindWindowByName(name).GetValue()
+        if input_string is None \
+           or not isinstance(input_string,basestring) \
+           or input_string == '':
+            value = 0.0
+            units = ''
+        else:
+            #print "input %s"%(input_string)
+            value,units = parse_measurement(input_string)
+            #print "Value %f; Units %s"%(value,units)
+             
+        
+        if units is None or units.strip() == '':
+            # if no units were specified, use the units specified in label.
+            #print "Units Label: %s"%(name+'_units')
+            units = self.FindWindowByName(name+'_units').GetLabel()
+        else:
+            # if units were specified, set the label to those units.
+            units = units.strip()
+            self.set_units(name,units)
+        
+        if value is None:
+            return 0.0
             
-        return value
+        mult = conversion.get(units,1) #or 1/default_units
+       
+
+        # value = None
+        # try:
+            # value = float(self.FindWindowByName(name).GetValue())
+        # except ValueError:
+            # pass
+        return value * mult
+        
+    def set_units(self,name,label):
+        units_name = name+'_units'
+        value = None
+        control = self.FindWindowByName(units_name)
+        if control is not None:
+            print "Setting %s to %s"%(units_name,label)
+            control.SetLabel(label)
+            return True
+        return False
         
 class wxPointUtil:
     """A variety of utilities and geometric calculations for
@@ -632,7 +712,127 @@ class wxPointUtil:
     #     parameters-now-available-online.php
     # 
     
+####################################################################
+############                           #############################
+############      UNIT CONVERSION      #############################
+############                           #############################
+####################################################################
 
+import re
+# import pcbnew
+
+# Regular expression to parse floating point followed by units.
+# The first group (the scanf() tokens for a number any which way) is
+# lifted directly from the python docs for the re module.
+
+SCANF_MEASUREMENT = re.compile(
+    r'''(                      # group match like scanf() token %e, %E, %f, %g
+    [-+]?                      # +/- or nothing for positive
+    (\d+(\.\d*)?|\.\d+)        # match numbers: 1, 1., 1.1, .1
+    ([eE][-+]?\d+)?            # scientific notation: e(+/-)2 (*10^2)
+    )
+    (\s*)                      # separator: white space or nothing
+    (                          # unit of measure: like GB. also works for no units
+    \S*)''',    re.VERBOSE)
+'''
+:var SCANF_MEASUREMENT:
+    regular expression object that will match a measurement
+
+    **measurement** is the value of a quantity of something. most complicated example::
+
+        -666.6e-100 units
+'''
+
+def parse_measurement(value_sep_units):
+    value = None
+    units = None
+    measurement = re.match(SCANF_MEASUREMENT, value_sep_units)
+    if measurement:
+        #print measurement.groups()
+        try:
+            value = float(measurement.groups()[0])
+        except ValueError:
+            pass
+            #print "doesn't start with a number", value_sep_units
+        units = measurement.groups()[5]
+    # else:
+        # print "No match!"
+
+    return value, units
+
+
+conversion = {
+    '':1,
+    'nm':1,
+    'nanometer':1,
+    'nanometers':1,
+    'um':pcbnew.IU_PER_MM/1000.0,
+    'micron':pcbnew.IU_PER_MM/1000.0,
+    'microns':pcbnew.IU_PER_MM/1000.0,
+    'micrometer':pcbnew.IU_PER_MM/1000.0,
+    'micrometers':pcbnew.IU_PER_MM/1000.0,
+    'decimicron':pcbnew.IU_PER_MM/10000.0,
+    'decimicrons':pcbnew.IU_PER_MM/10000.0,
+    'du':pcbnew.IU_PER_MM/10000.0,
+    'dus':pcbnew.IU_PER_MM/10000.0,
+    'dum':pcbnew.IU_PER_MM/10000.0,
+    'dums':pcbnew.IU_PER_MM/10000.0,
+    'mm':pcbnew.IU_PER_MM,
+    'millimeter':pcbnew.IU_PER_MM,
+    'millimeters':pcbnew.IU_PER_MM,
+    'm':pcbnew.IU_PER_MM*1000,
+    'meter':pcbnew.IU_PER_MM*1000,
+    'meters':pcbnew.IU_PER_MM*1000,
+    'km':pcbnew.IU_PER_MM*1000000,
+    'kilometer':pcbnew.IU_PER_MM*1000000,
+    'kilometers':pcbnew.IU_PER_MM*1000000,
+    'thou':pcbnew.IU_PER_MILS,
+    'mil':pcbnew.IU_PER_MILS,
+    'mils':pcbnew.IU_PER_MILS,
+    'dmil':pcbnew.IU_PER_MILS/10.0,
+    'dmils':pcbnew.IU_PER_MILS/10.0,
+    'decimil':pcbnew.IU_PER_MILS/10.0,
+    'decimils':pcbnew.IU_PER_MILS/10.0,
+    'cmil':pcbnew.IU_PER_MILS/100.0,
+    'cmils':pcbnew.IU_PER_MILS/100.0,
+    'centimil':pcbnew.IU_PER_MILS/100.0,
+    'centimils':pcbnew.IU_PER_MILS/100.0,
+    'cm':pcbnew.IU_PER_MM*10,
+    'centimeter':pcbnew.IU_PER_MM*10,
+    'centimeters':pcbnew.IU_PER_MM*10,
+    'in':pcbnew.IU_PER_MILS*1000.0,
+    'inch':pcbnew.IU_PER_MILS*1000.0,
+    'inches':pcbnew.IU_PER_MILS*1000.0,
+    '"':pcbnew.IU_PER_MILS*1000.0, # inches
+    "'":pcbnew.IU_PER_MILS*1000.0*12, # feet
+    'feet':pcbnew.IU_PER_MILS*1000.0*12,
+    'foot':pcbnew.IU_PER_MILS*1000.0*12,
+}
+# squared versions of measurements (three types: 2, **2, ^2)
+for unit in conversion.keys():
+    value = conversion[unit]
+    conversion[unit+'2']=value**2
+    conversion[unit+'^2']=value**2
+    conversion[unit+'**2']=value**2
+    
+def convert_to_iu(value_units_string,default_units='',assume_squared=False):
+    """default_units specified as a valid suffix or a multiplier for
+       converting to nanometers."""
+    value, units = parse_measurement(value_units_string)
+    if value is None:
+        return None
+    mult = conversion.get(units,conversion.get(default_units)) or 1/default_units
+    
+    # if assume_squared:
+        # mult = mult*mult
+
+    return value*mult
+
+####################################################################
+############                               #########################
+############      END UNIT CONVERSION      #########################
+############                               #########################
+####################################################################
 
 
 
@@ -708,7 +908,6 @@ class KiPadCheck( pcbnew.ActionPlugin ):
     _pcbnewWindow = None
     _frame = None
     _progress = None
-    _DrillSet = 0
     """The index within StandardDrill to use in DrillInfo() checks."""
     
     _StandardDrill = []
@@ -1504,6 +1703,33 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         board = pcbnew.GetBoard()
         self._consoleText.AppendText("Starting MenuItemPadInfo()...\n")
 
+##################################################
+######   Get Layers Used   #######################
+##################################################
+        #self._layernums = [num for num in range(self.LAYERCOUNT) if not board.GetLayerName(num).startswith("In")]
+        copperLayers = filter(
+            (lambda x: pcbnew.IsCopperLayer(x)),
+            range(self.LAYERCOUNT))
+        nonCopperLayers = filter(
+            (lambda x: pcbnew.IsNonCopperLayer(x)),
+            range(self.LAYERCOUNT))
+        self._layernums = copperLayers[0:board.GetCopperLayerCount()] \
+            + nonCopperLayers
+        #self._layernums = copperLayers + nonCopperLayers
+        self._layernums = [copperLayers[0]] \
+            + [copperLayers[-1]] \
+            + copperLayers[1:board.GetCopperLayerCount()-1] \
+            + nonCopperLayers
+
+        self._layer_num_by_name = {}
+        for num in range(self.LAYERCOUNT):
+            self._layer_num_by_name[board.GetLayerName(num)] = num
+        layer_names = sorted(self._layer_num_by_name.keys(), key=lambda x: self._layer_num_by_name[x])
+        
+##################################################
+#########   End Layers Used   ####################
+##################################################
+
         windowName = 'KiPadCheck'
 
         padsWindow = wx.FindWindowByLabel(windowName,parent=self._pcbnewWindow)
@@ -1516,7 +1742,13 @@ class KiPadCheck( pcbnew.ActionPlugin ):
 
         else:
             # this will tie the 'Pads' window to pcbnew window
-            self._frame = gui(self,parent=self._pcbnewWindow)
+            names = [pcbnew.GetBoard().GetLayerName(num) for num in self._layernums]
+            drillsets = map(lambda x:x[0],self._StandardDrillInfo)
+
+            self._frame = gui(self,parent=self._pcbnewWindow,
+                layer_names=names,
+                drillset_names=drillsets
+            )
             self._progress = self._frame.FindWindowByName('progress')
             #self._frame = wx.Frame(self._pcbnewWindow, size=wx.Size(50,50),title=windowName) #, size=wx.Size(400,400))
             # paneltop = wx.Panel(self._frame)
@@ -1590,24 +1822,6 @@ class KiPadCheck( pcbnew.ActionPlugin ):
             # self._frame.Fit()
             # panelbottom.Fit()
 
-        #self._layernums = [num for num in range(self.LAYERCOUNT) if not board.GetLayerName(num).startswith("In")]
-        copperLayers = filter(
-            (lambda x: pcbnew.IsCopperLayer(x)),
-            range(self.LAYERCOUNT))
-        nonCopperLayers = filter(
-            (lambda x: pcbnew.IsNonCopperLayer(x)),
-            range(self.LAYERCOUNT))
-        self._layernums = copperLayers[0:board.GetCopperLayerCount()] \
-            + nonCopperLayers
-        #self._layernums = copperLayers + nonCopperLayers
-        self._layernums = [copperLayers[0]] \
-            + [copperLayers[-1]] \
-            + copperLayers[1:board.GetCopperLayerCount()-1] \
-            + nonCopperLayers
-
-        self._layer_num_by_name = {}
-        for num in range(self.LAYERCOUNT):
-            self._layer_num_by_name[board.GetLayerName(num)] = num
         self._consoleText.AppendText("Finished MenuItemPadInfo()\n")
         self._frame.Show(True)
         self._frame.Update()
@@ -1922,8 +2136,6 @@ class KiPadCheck( pcbnew.ActionPlugin ):
             # pad.UnplatedHoleMask
             # pad.ViewGetLayers
             # pad.ViewGetLOD
-    MinimumViaViaMils = 19
-    MinimumViaTrackMils = 12
 
     def get_position_and_size(self,object):
         """Return GetPosition() and GetSize() in a tuple (x,y,w,h)."""
@@ -2075,7 +2287,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         r = wxPointUtil.check_polygons_intersecting(p1, p2)
         print(r)
 
-    def draw_vector(self,vector,layer=pcbnew.Eco2_User,thickness=0.015):
+    def draw_vector(self,vector,layer=pcbnew.Eco2_User,thickness=0.015*pcbnew.IU_PER_MM):
         """Draws the vector (wxPoint_vector of line segments) on the given
            layer and with the given thickness."""
         #print type(vector)
@@ -2086,8 +2298,8 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                 vector[i+1][0],
                 vector[i+1][1],
                 layer=layer,
-                thicknessmm=thickness)
-    def draw_polygon(self,polygon,layer=pcbnew.Eco2_User,thickness=0.015,close=False):
+                thickness=thickness)
+    def draw_polygon(self,polygon,layer=pcbnew.Eco2_User,thickness=0.015*pcbnew.IU_PER_MM,close=False):
         """Draws the vector (wxPoint_vector of polygon vertices) on the given
            layer and with the given thickness.
            close indicates whether the polygon needs to be closed
@@ -2101,7 +2313,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                 polygon[i+1][0],
                 polygon[i+1][1],
                 layer=layer,
-                thicknessmm=thickness)
+                thickness=thickness)
         if close:
             self.draw_segment(
                 polygon[0][0],
@@ -2109,9 +2321,9 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                 polygon[-1][0],
                 polygon[-1][1],
                 layer=layer,
-                thicknessmm=thickness)
+                thickness=thickness)
         
-    def draw_segment(self,x1,y1,x2,y2,layer=pcbnew.Dwgs_User,thicknessmm=0.15):
+    def draw_segment(self,x1,y1,x2,y2,layer=pcbnew.Dwgs_User,thickness=0.15*pcbnew.IU_PER_MM):
         """Draws the line segment indicated by the x,y values
         on the given layer and with the given thickness."""
         board = pcbnew.GetBoard()
@@ -2120,8 +2332,8 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         ds.SetStart(pcbnew.wxPoint(x1,y1))
         ds.SetEnd(pcbnew.wxPoint(x2,y2))
         ds.SetLayer(layer)
-        #print thicknessmm, thicknessmm*pcbnew.IU_PER_MM, int(thicknessmm*pcbnew.IU_PER_MM)
-        ds.SetWidth(max(1,int(thicknessmm*pcbnew.IU_PER_MM)))
+        #print thickness, thickness*pcbnew.IU_PER_MM, int(thickness*pcbnew.IU_PER_MM)
+        ds.SetWidth(max(1,int(thickness*pcbnew.IU_PER_MM)))
 
     def SilkInfo(self,e):
     
@@ -2287,18 +2499,28 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         # pad rectangles, text rectangles, text strokes with
         # thickness specified by Outline Thickness
         
-        USER_minsilkpadspacing = (self._frame.get_value_float('sp') or 0.0) * pcbnew.IU_PER_MM
+        USER_minsilkpadspacing = (self._frame.get_value_float('sp') or 0.0)
         USER_slow_check        = self._frame.FindWindowByName('sc').GetValue()
 
-        USER_draw_outlines_thickness = (self._frame.get_value_float('ot') or 0.0)
-        USER_draw_all_outlines = (self._frame.get_value_float('dao') or 0.0)
-        USER_silk_minimum_width = (self._frame.get_value_float('smw') or 0.0) * pcbnew.IU_PER_MM
-        USER_text_minimum_height = (self._frame.get_value_float('tmh') or 0.0) * pcbnew.IU_PER_MM
+        USER_draw_outlines_thickness = (self._frame.get_value_float('ot') or 0.0) 
+        USER_silk_minimum_width = (self._frame.get_value_float('smw') or 0.0)
+        USER_text_minimum_height = (self._frame.get_value_float('tmh') or 0.0)
         # expressed as W/H > 1/minW2H, or W*minW2H > H
-        USER_text_minimum_WtoH = (self._frame.get_value_float('wtoh') or 0.0)
-
+        
+        try:
+            USER_text_minimum_WtoH = float(self._frame.FindWindowByName('dao').GetValue())
+        except ValueError:
+            USER_text_minimum_WtoH = 1.0
         USER_draw_stroke_thickness   = USER_draw_outlines_thickness
-        USER_draw_outlines_layer = pcbnew.Eco2_User
+        USER_draw_all_outlines = self._frame.FindWindowByName('dao').GetValue()
+        
+        try:
+            control = self._frame.FindWindowByName('dl_layers')
+            USER_draw_outlines_layer = self._layer_num_by_name[control.GetString(control.GetSelection())]
+        except:
+            USER_draw_outlines_layer = pcbnew.Eco2_User
+        print pcbnew.GetBoard().GetLayerName(USER_draw_outlines_layer)
+        
         
 
         if USER_draw_all_outlines:
@@ -2312,7 +2534,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                                 vertices[i+1][0],
                                 vertices[i+1][1],
                                 layer=USER_draw_outlines_layer,
-                                thicknessmm=USER_draw_outlines_thickness)
+                                thickness=USER_draw_outlines_thickness)
                                 
 
             for layerindex,strokes in enumerate(strokes_to_check):
@@ -2457,7 +2679,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                 if gi.GetShapeStr() != "Line":
                     self._console_text_queue.put("Shape '%s' at %s not checked.\n"%(gi.GetShapeStr(),str(gi.GetCenter())))
                     continue
-                #self.draw_segment(gi.GetStart().x,gi.GetStart().y,gi.GetEnd().x,gi.GetEnd().y,layer=pcbnew.Eco2_User, thicknessmm=0.02)
+                #self.draw_segment(gi.GetStart().x,gi.GetStart().y,gi.GetEnd().x,gi.GetEnd().y,layer=pcbnew.Eco2_User, thickness=0.02)
                 #self._console_text_queue.put("width=%.3f mm\n"%(gi.GetWidth()/pcbnew.IU_PER_MM))
                 for ipad,pad in enumerate(padrects):
                     # does this stroke (vector[vindex]) intersect pad?
@@ -2474,7 +2696,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                             orientation = 0.0
 
                         #print gi.GetCenter(), orientation
-                        #self.draw_segment(gi.GetStart().x,gi.GetStart().y,gi.GetEnd().x,gi.GetEnd().y,layer=pcbnew.Cmts_User, thicknessmm=0.02)
+                        #self.draw_segment(gi.GetStart().x,gi.GetStart().y,gi.GetEnd().x,gi.GetEnd().y,layer=pcbnew.Cmts_User, thickness=0.02*pcbnew.IU_PER_MM)
 
                         if wxPointUtil.check_polygons_intersecting(
                            (gi.GetStart(),gi.GetEnd()),pad,closed=False):
@@ -2577,7 +2799,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                     # vindex+=1
                     # continue
                 self.draw_segment(vectors[vindex][0],vectors[vindex][1],
-                    vectors[vindex+1][0],vectors[vindex+1][1],layer=pcbnew.Eco2_User,thicknessmm=0.075)
+                    vectors[vindex+1][0],vectors[vindex+1][1],layer=pcbnew.Eco2_User,thicknessmm=0.075*pcbnew.IU_PER_MM)
             vectors.clear()
            
 
@@ -2634,12 +2856,9 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         
         board = pcbnew.GetBoard()
 
-        MinimumViaViaMils = (self._frame.get_value_float('vv') or 0.0)
-        MinimumViaTrackMils = (self._frame.get_value_float('vt') or 0.0)
-        
-        print type(MinimumViaViaMils)
-        MinimumViaVia = MinimumViaViaMils*pcbnew.IU_PER_MILS
-        
+        MinimumViaVia = (self._frame.get_value_float('vv') or 0.0)
+        MinimumViaTrack = (self._frame.get_value_float('vt') or 0.0)
+                
         self._console_text_queue.put(
             "\n\n***** Quantity of holes by layer and size *****\n")
         self._console_text_queue.put("Layers: %s\n"%(str(self.get_holes_by_layer().keys())))
@@ -2648,7 +2867,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
         allholes = self.get_pad_holes_and_vias()
         edgecut_items = self.get_all_drawings_and_graphic_items(layerlist=(pcbnew.Edge_Cuts,))
 
-        USER_drill_to_edge = (self._frame.get_value_float('dtoe') or 0.0) * pcbnew.IU_PER_MM
+        USER_drill_to_edge = (self._frame.get_value_float('dtoe') or 0.0)
         
         edgefail = 0
         
@@ -2773,9 +2992,11 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                 padsize[0]/pcbnew.IU_PER_MM,len(padlist)))
         self._console_text_queue.put(
             "\n\n***** Quantity of Pads By Standard Drill Size, ordered by area *****\n")
-        setname, scale, source = self._StandardDrillInfo[self._DrillSet]
+        drillset = 0
+        setname, scale, source = self._StandardDrillInfo[drillset]
         self._console_text_queue.put("%s from:\n%s\n\n"%(setname,source))
-        
+        drillmin = (self._frame.get_value_float('drillmin') or 0.0)
+        drillmax = (self._frame.get_value_float('drillmax') or 1000*pcbnew.IU_PER_MM)
         areaorder = sorted(self.padHolesBySize.keys(),key=lambda x:x[0]*x[1])
         for padsize in areaorder:
             padlist = self.padHolesBySize[padsize]
@@ -2783,18 +3004,22 @@ class KiPadCheck( pcbnew.ActionPlugin ):
             self._progress_value_queue.put(count)
             if padsize[0]==0 and padsize[1]==0:
                 continue
-            for dindex,dsize in enumerate(self._StandardDrill[self._DrillSet]):
+            for dindex,dsize in enumerate(self._StandardDrill[drillset]):
                 # drill sizes * scale are internal units
-                if (dsize[0]*scale) >= padsize[0]:
+                standarddrillsize = dsize[0]*scale
+                if standarddrillsize >= padsize[0]:
+                    if not ( drillmin <= standarddrillsize <= drillmax ):
+                        self._console_text_queue.put(
+                        "Drill exceeds limits (%.3f mm<-> %.3f mm):\n"%(drillmin/pcbnew.IU_PER_MM,drillmax/pcbnew.IU_PER_MM) )
                     self._console_text_queue.put(
                        'Size: %.3fmm (%.1f mils), '
                        'Drill "%s": %.3fmm  (%.1f mils), '
                        'Quantity %s\n'%(
                        padsize[0]/pcbnew.IU_PER_MM,
                        padsize[0]/pcbnew.IU_PER_MILS,
-                       self._StandardDrill[self._DrillSet][dindex][1],
-                       dsize[0]*scale/pcbnew.IU_PER_MM,
-                       dsize[0]*scale/pcbnew.IU_PER_MILS,
+                       self._StandardDrill[drillset][dindex][1],
+                       standarddrillsize/pcbnew.IU_PER_MM,
+                       standarddrillsize/pcbnew.IU_PER_MILS,
                        len(padlist)))
                     # padsize[0]*25.4/1000000.0
                     break
@@ -2846,10 +3071,10 @@ class KiPadCheck( pcbnew.ActionPlugin ):
             "(looking only *forward* through the list)\n")
         self._console_text_queue.put(
             "Minimum Via to Via = %.3f mils (%.3f mm)\n\n"
-            %(MinimumViaViaMils,25.4*MinimumViaViaMils/1000.0))
+            %(MinimumViaVia/pcbnew.IU_PER_MILS,MinimumViaVia/pcbnew.IU_PER_MM))
         for i,dist in enumerate(distmin):
             self._console_text_queue.put("%d %.3f mm\n"%(i,dist/1000000.0))
-            if dist<25.4*1000000.0*MinimumViaViaMils/1000.0:
+            if dist<MinimumViaVia:
                 FailedVias.append(i)
                 self._vias[i].SetHighlighted()
         if len(FailedVias) > 0:
@@ -2887,8 +3112,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                 DIST = dist
                 dist = dist - (track.GetWidth() + d)/2.0
                 DISTREDUCED = dist
-                MinimumViaTracknm = (1000000/1000)*MinimumViaTrackMils*25.4
-                if (abs(dist) > 1000) and (dist < MinimumViaTracknm):
+                if (abs(dist) > 1000) and (dist < MinimumViaTrack):
                     if dist < 0:
                         track.SetSelected()
                         via.SetSelected()
@@ -2905,7 +3129,7 @@ class KiPadCheck( pcbnew.ActionPlugin ):
                             track.GetNetname(),
                             str(s),
                             str(e),
-                            MinimumViaTracknm)))
+                            MinimumViaTrack)))
                     FailedTracks.add(track)
         for track in FailedTracks:
             track.SetSelected()

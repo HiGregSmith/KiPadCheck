@@ -1,7 +1,7 @@
     kipadcheck.py
     
     KiPadCheck
-    https://github.com/HiGregSmith/KiPadCheck#
+    https://github.com/HiGregSmith/KiPadCheck
     Original Author: Greg Smith, June-August 2017
     
     THERE ARE NO GUARANTEES THAT THE Design Rule Checks ARE 
@@ -41,8 +41,9 @@
     checks.
     
     Fill out the dimension information supplied by your PCB manufacturer to
-    check your layout against.
-    
+    check your layout against. You can enter the units along with the number and
+    KiPadCheck will recognize the units appropriately.
+
     The following entry items are used in the respective checks.
     
     Pad Info: Produces output on the KiCad console, no dialog entries used.
@@ -51,19 +52,18 @@
         Via to Via Spacing
         Via to Track spacing
         Drill to Edge spacing
+        Drill Minimum
+        Drill Maximum
+        Drill Set
     Silk Info:  Produces output on the KiCad console, the following entries are used.
-    Silk to Pad spacing
+        Silk to Pad spacing:
+            Spacing between items on silk layers and pad copper.
         Silk Slow Check:
             Enables non-zero silk-to-pad check, and text stroke check.
             If disabled, will only check silk overlap of pad against
             bounding boxes of text.
-        Outline Thickness:
-            Will draw outlines on Eco2 layer of pads and text that are checked.
-            Notably, text strokes are only checked if the text bounding box
+            Note that text strokes are only checked if the text bounding box
             is close enough to require further checking.
-        Draw All Outlines:
-            Will draw all outlines of pads and text strokes with the specified
-            Outline Thickness.
         Silk Minimum Width:
             The minimum line thickness on the silk layer for text and
             graphical items.
@@ -74,29 +74,37 @@
             greater than 1 divided by the value in this entry.
             A typical value entered here would be "5" which would represent
             a W/H ratio of 1/5, or 0.2.
-    
-    BUGS
-    
-    Preliminary support is included for more than 2 layers.
-    Pads are not verified for shape, currently assumes rectangle bounding box.
-    Does not mix via drill and pad drill checks.
+        DEBUG OPTIONS
+        Outline Thickness:
+            Will draw outlines on Eco2 layer of pads and text that are checked.
+            Note that text strokes are only checked if the text bounding box
+            is close enough to require further checking.
+        Draw All Outlines:
+            Will draw all outlines of pads and text strokes with the specified
+            Outline Thickness.
     
     TODO
-    
-    Aside from fixing the BUGS above:
+    Support layers appropriately for all checks. Currently SilkInfo does
+        check layers appropriately: F.Cu vs. F.SilkS and B.Cu vs. B.SilkS.
+        Other checks may only support 2 layers or may incorrectly check all
+        layers, including those that don't make sense (e.g. F.SilkS vs. B.Cu).
+    Support non-rectangular pads. Currently checks only rectangle bounding box.
+    Handle pad drill vs. via drill appropriately.
     Check annular ring size.
-    Inputs and outputs are in varying non-changable units (mils, inches, mm, nm)
-    Support all layers for all checks. Currently SilkInfo does check layers
-        appropriately: F.Cu vs. F.SilkS and B.Cu vs. B.SilkS
-        Support more than just through drills (i.e. buried/blind self._vias).
-    Label units and make consistent.
-    Mask Info: Check solder mask dam sizes.
-    
-    Consider adapting translation for descriptions:
-    https://ctrlq.org/code/19909-google-translate-api
+    Outputs are in varying non-changable units (mils, inches, mm, nm)
+    Label output units and make consistent.
+    Support more than just through drills (i.e. buried/blind self._vias).
+    Mask Info: Check solder mask dam sizes (i.e. "Mask spacing.")
+    Check Annular Rings.
+    Allow reading/writing from dru file, then:
+        Consider adapting translation for descriptions:
+        https://ctrlq.org/code/19909-google-translate-api
     
     COMPLETE
     
+    DONE Allow changing drill sets
+    DONE Allow changing Debug Layer
+    DONE Allow changing input units
     DONE Update progress bar when doing SilkInfo
     DONE Silk Info: Check silk screen character sizes:
             Minimum Character Width(Legend)	0.15mm	Characters of less than 0.15mm wide will be too narrow to be identifiable.
@@ -203,7 +211,7 @@
         stencil mil thickness, area ratio, aspect ratio)
         (qty 24)	Aperture=0.225,0.725 (2.0 1.69 4.43) (3.0 1.13 2.95)
             (4.0 0.85 2.21) (5.0 0.68 1.77) (6.0 0.56 1.48) (7.0 0.48 1.27)
-            Pads: [20, 45, 80, 98, 99, 100, 101, 109, 113, 121, 125, 140,
+        Pads: [20, 45, 80, 98, 99, 100, 101, 109, 113, 121, 125, 140,
             143, 165, 205, 208, 209, 210, 233, 234, 238, 239, 241, 244]
             From: CONN_01X24
         ...
@@ -256,7 +264,7 @@
     PROGRAMMING NOTES
     
     Naming conventions (from PEP8):
-    Short python naming guide (from PEP8):
+        Short python naming guide (from PEP8):
     
         ClassName
         function_name
@@ -273,13 +281,13 @@
     
     There are some examples of using python code to interact
     with KiCAD:
-        Install Tools menu, replace if already existing
+    Install Tools menu, replace if already existing
         (allows reloading python file after changes)
-        Iterate over tracks, identify self._vias, get sizes of
-        via and pad copper, mask, and paste
-        Identify which layers a pad is on.
-        Generate basic interactive window.
-        Display  multi-threaded wx.Gauge (self._progress bar).
-        Get Paste (stencil) Aperture size calculated from pad properties.
+    Iterate over tracks, identify self._vias, get sizes of
+    via and pad copper, mask, and paste
+    Identify which layers a pad is on.
+    Generate basic interactive window.
+    Display  multi-threaded wx.Gauge (self._progress bar).
+    Get Paste (stencil) Aperture size calculated from pad properties.
     
     

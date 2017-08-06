@@ -17,7 +17,7 @@ import wx.xrc
 class kipadcheck_gui ( wx.Frame ):
 	
 	def __init__( self, parent ):
-		wx.Frame.__init__ ( self, parent, id = wx.ID_ANY, title = wx.EmptyString, pos = wx.DefaultPosition, size = wx.Size( 656,531 ), style = wx.DEFAULT_FRAME_STYLE|wx.TAB_TRAVERSAL )
+		wx.Frame.__init__ ( self, parent, id = wx.ID_ANY, title = wx.EmptyString, pos = wx.DefaultPosition, size = wx.Size( 632,505 ), style = wx.DEFAULT_FRAME_STYLE|wx.TAB_TRAVERSAL )
 		
 		self.SetSizeHintsSz( wx.DefaultSize, wx.DefaultSize )
 		
@@ -32,11 +32,11 @@ class kipadcheck_gui ( wx.Frame ):
 		self.m_button2 = wx.Button( self.m_panel3, wx.ID_ANY, u"Run Stencil", wx.DefaultPosition, wx.DefaultSize, 0 )
 		bSizer21.Add( self.m_button2, 0, wx.ALL, 5 )
 		
-		self.m_button3 = wx.Button( self.m_panel3, wx.ID_ANY, u"Run Drill", wx.DefaultPosition, wx.DefaultSize, 0 )
-		bSizer21.Add( self.m_button3, 0, wx.ALL, 5 )
-		
 		self.m_button4 = wx.Button( self.m_panel3, wx.ID_ANY, u"Run Silk", wx.DefaultPosition, wx.DefaultSize, 0 )
 		bSizer21.Add( self.m_button4, 0, wx.ALL, 5 )
+		
+		self.m_button3 = wx.Button( self.m_panel3, wx.ID_ANY, u"Run Drill", wx.DefaultPosition, wx.DefaultSize, 0 )
+		bSizer21.Add( self.m_button3, 0, wx.ALL, 5 )
 		
 		
 		self.m_panel3.SetSizer( bSizer21 )
@@ -49,49 +49,6 @@ class kipadcheck_gui ( wx.Frame ):
 		bSizer2.Add( self.m_gauge1, 0, wx.EXPAND, 5 )
 		
 		self.m_notebook1 = wx.Notebook( self, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, 0 )
-		self.m_panel8 = wx.Panel( self.m_notebook1, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, wx.TAB_TRAVERSAL )
-		gbSizer1 = wx.GridBagSizer( 0, 0 )
-		gbSizer1.SetFlexibleDirection( wx.VERTICAL )
-		gbSizer1.SetNonFlexibleGrowMode( wx.FLEX_GROWMODE_NONE )
-		
-		self.m_staticText11 = wx.StaticText( self.m_panel8, wx.ID_ANY, u"Via to Via spacing", wx.DefaultPosition, wx.DefaultSize, 0 )
-		self.m_staticText11.Wrap( -1 )
-		gbSizer1.Add( self.m_staticText11, wx.GBPosition( 0, 0 ), wx.GBSpan( 1, 1 ), wx.ALL, 5 )
-		
-		self.m_staticText112 = wx.StaticText( self.m_panel8, wx.ID_ANY, u"(mils)", wx.DefaultPosition, wx.DefaultSize, 0 )
-		self.m_staticText112.Wrap( -1 )
-		gbSizer1.Add( self.m_staticText112, wx.GBPosition( 0, 2 ), wx.GBSpan( 1, 1 ), wx.ALIGN_LEFT|wx.ALL, 5 )
-		
-		self.m_staticText1121 = wx.StaticText( self.m_panel8, wx.ID_ANY, u"(mils)", wx.DefaultPosition, wx.DefaultSize, 0 )
-		self.m_staticText1121.Wrap( -1 )
-		gbSizer1.Add( self.m_staticText1121, wx.GBPosition( 1, 2 ), wx.GBSpan( 1, 1 ), wx.ALIGN_LEFT|wx.ALL, 5 )
-		
-		self.m_staticText11211 = wx.StaticText( self.m_panel8, wx.ID_ANY, u"(mm)", wx.DefaultPosition, wx.DefaultSize, 0 )
-		self.m_staticText11211.Wrap( -1 )
-		gbSizer1.Add( self.m_staticText11211, wx.GBPosition( 2, 2 ), wx.GBSpan( 1, 1 ), wx.ALIGN_LEFT|wx.ALL, 5 )
-		
-		self.m_textCtrl21 = wx.TextCtrl( self.m_panel8, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"vv" )
-		gbSizer1.Add( self.m_textCtrl21, wx.GBPosition( 0, 1 ), wx.GBSpan( 1, 1 ), wx.ALIGN_RIGHT|wx.ALL, 5 )
-		
-		self.m_staticText1 = wx.StaticText( self.m_panel8, wx.ID_ANY, u"Via to Track spacing", wx.DefaultPosition, wx.DefaultSize, 0 )
-		self.m_staticText1.Wrap( -1 )
-		gbSizer1.Add( self.m_staticText1, wx.GBPosition( 1, 0 ), wx.GBSpan( 1, 1 ), wx.ALL, 5 )
-		
-		self.m_textCtrl2 = wx.TextCtrl( self.m_panel8, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"vt" )
-		gbSizer1.Add( self.m_textCtrl2, wx.GBPosition( 1, 1 ), wx.GBSpan( 1, 1 ), wx.ALIGN_RIGHT|wx.ALL, 5 )
-		
-		self.m_staticText111 = wx.StaticText( self.m_panel8, wx.ID_ANY, u"Drill to Edge spacing", wx.DefaultPosition, wx.DefaultSize, 0 )
-		self.m_staticText111.Wrap( -1 )
-		gbSizer1.Add( self.m_staticText111, wx.GBPosition( 2, 0 ), wx.GBSpan( 1, 1 ), wx.ALL, 5 )
-		
-		self.m_textCtrl211 = wx.TextCtrl( self.m_panel8, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"dtoe" )
-		gbSizer1.Add( self.m_textCtrl211, wx.GBPosition( 2, 1 ), wx.GBSpan( 1, 1 ), wx.ALIGN_RIGHT|wx.ALL, 5 )
-		
-		
-		self.m_panel8.SetSizer( gbSizer1 )
-		self.m_panel8.Layout()
-		gbSizer1.Fit( self.m_panel8 )
-		self.m_notebook1.AddPage( self.m_panel8, u"Drill Parameters", False )
 		self.m_panel9 = wx.Panel( self.m_notebook1, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, wx.TAB_TRAVERSAL )
 		gbSizer3 = wx.GridBagSizer( 0, 0 )
 		gbSizer3.SetFlexibleDirection( wx.BOTH )
@@ -104,7 +61,7 @@ class kipadcheck_gui ( wx.Frame ):
 		self.m_textCtrl10 = wx.TextCtrl( self.m_panel9, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"sp" )
 		gbSizer3.Add( self.m_textCtrl10, wx.GBPosition( 0, 2 ), wx.GBSpan( 1, 1 ), wx.ALL, 5 )
 		
-		self.m_staticText19 = wx.StaticText( self.m_panel9, wx.ID_ANY, u"(mm)", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText19 = wx.StaticText( self.m_panel9, wx.ID_ANY, u"mm", wx.DefaultPosition, wx.DefaultSize, 0, u"sp_units" )
 		self.m_staticText19.Wrap( -1 )
 		gbSizer3.Add( self.m_staticText19, wx.GBPosition( 0, 3 ), wx.GBSpan( 1, 1 ), wx.ALL, 5 )
 		
@@ -115,7 +72,7 @@ class kipadcheck_gui ( wx.Frame ):
 		self.m_textCtrl11 = wx.TextCtrl( self.m_panel9, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"smw" )
 		gbSizer3.Add( self.m_textCtrl11, wx.GBPosition( 1, 2 ), wx.GBSpan( 1, 1 ), wx.ALL, 5 )
 		
-		self.m_staticText22 = wx.StaticText( self.m_panel9, wx.ID_ANY, u"(mm)", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText22 = wx.StaticText( self.m_panel9, wx.ID_ANY, u"mm", wx.DefaultPosition, wx.DefaultSize, 0, u"smw_units" )
 		self.m_staticText22.Wrap( -1 )
 		gbSizer3.Add( self.m_staticText22, wx.GBPosition( 1, 3 ), wx.GBSpan( 1, 1 ), wx.ALL, 5 )
 		
@@ -126,11 +83,11 @@ class kipadcheck_gui ( wx.Frame ):
 		self.m_textCtrl12 = wx.TextCtrl( self.m_panel9, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"tmh" )
 		gbSizer3.Add( self.m_textCtrl12, wx.GBPosition( 2, 2 ), wx.GBSpan( 1, 1 ), wx.ALL, 5 )
 		
-		self.m_staticText24 = wx.StaticText( self.m_panel9, wx.ID_ANY, u"(mm)", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText24 = wx.StaticText( self.m_panel9, wx.ID_ANY, u"mm", wx.DefaultPosition, wx.DefaultSize, 0, u"tmh_units" )
 		self.m_staticText24.Wrap( -1 )
 		gbSizer3.Add( self.m_staticText24, wx.GBPosition( 2, 3 ), wx.GBSpan( 1, 1 ), wx.ALL, 5 )
 		
-		self.m_staticText241 = wx.StaticText( self.m_panel9, wx.ID_ANY, u"(mm)", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText241 = wx.StaticText( self.m_panel9, wx.ID_ANY, u"mm", wx.DefaultPosition, wx.DefaultSize, 0, u"ot_units" )
 		self.m_staticText241.Wrap( -1 )
 		gbSizer3.Add( self.m_staticText241, wx.GBPosition( 8, 3 ), wx.GBSpan( 1, 1 ), wx.ALL, 5 )
 		
@@ -174,19 +131,99 @@ class kipadcheck_gui ( wx.Frame ):
 		self.m_staticText242.Wrap( -1 )
 		gbSizer3.Add( self.m_staticText242, wx.GBPosition( 6, 0 ), wx.GBSpan( 1, 3 ), wx.ALIGN_CENTER_HORIZONTAL|wx.ALL, 5 )
 		
-		self.m_staticText211 = wx.StaticText( self.m_panel9, wx.ID_ANY, u"Eco2.User", wx.DefaultPosition, wx.DefaultSize, 0 )
-		self.m_staticText211.Wrap( -1 )
-		gbSizer3.Add( self.m_staticText211, wx.GBPosition( 7, 2 ), wx.GBSpan( 1, 1 ), wx.ALL, 5 )
+		m_choice1Choices = []
+		self.m_choice1 = wx.Choice( self.m_panel9, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, m_choice1Choices, 0, wx.DefaultValidator, u"dl_layers" )
+		self.m_choice1.SetSelection( 0 )
+		gbSizer3.Add( self.m_choice1, wx.GBPosition( 7, 2 ), wx.GBSpan( 1, 1 ), wx.ALL, 5 )
 		
 		self.m_staticText231 = wx.StaticText( self.m_panel9, wx.ID_ANY, u"Debug Layer", wx.DefaultPosition, wx.DefaultSize, 0 )
 		self.m_staticText231.Wrap( -1 )
 		gbSizer3.Add( self.m_staticText231, wx.GBPosition( 7, 0 ), wx.GBSpan( 1, 2 ), wx.ALL, 5 )
+		
+		self.m_staticline1 = wx.StaticLine( self.m_panel9, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, wx.LI_HORIZONTAL )
+		gbSizer3.Add( self.m_staticline1, wx.GBPosition( 5, 0 ), wx.GBSpan( 1, 4 ), wx.ALIGN_BOTTOM|wx.EXPAND|wx.TOP, 10 )
 		
 		
 		self.m_panel9.SetSizer( gbSizer3 )
 		self.m_panel9.Layout()
 		gbSizer3.Fit( self.m_panel9 )
 		self.m_notebook1.AddPage( self.m_panel9, u"Silk Parameters", True )
+		self.m_panel8 = wx.Panel( self.m_notebook1, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, wx.TAB_TRAVERSAL )
+		gbSizer1 = wx.GridBagSizer( 0, 0 )
+		gbSizer1.SetFlexibleDirection( wx.BOTH )
+		gbSizer1.SetNonFlexibleGrowMode( wx.FLEX_GROWMODE_SPECIFIED )
+		
+		self.m_staticText11 = wx.StaticText( self.m_panel8, wx.ID_ANY, u"Via to Via spacing", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText11.Wrap( -1 )
+		gbSizer1.Add( self.m_staticText11, wx.GBPosition( 0, 0 ), wx.GBSpan( 1, 1 ), wx.ALL, 5 )
+		
+		self.m_staticText112 = wx.StaticText( self.m_panel8, wx.ID_ANY, u"mils", wx.DefaultPosition, wx.DefaultSize, 0, u"vv_units" )
+		self.m_staticText112.Wrap( -1 )
+		gbSizer1.Add( self.m_staticText112, wx.GBPosition( 0, 2 ), wx.GBSpan( 1, 1 ), wx.ALIGN_LEFT|wx.ALL, 5 )
+		
+		self.m_staticText1121 = wx.StaticText( self.m_panel8, wx.ID_ANY, u"mils", wx.DefaultPosition, wx.DefaultSize, 0, u"vt_units" )
+		self.m_staticText1121.Wrap( -1 )
+		gbSizer1.Add( self.m_staticText1121, wx.GBPosition( 1, 2 ), wx.GBSpan( 1, 1 ), wx.ALIGN_LEFT|wx.ALL, 5 )
+		
+		self.m_staticText11211 = wx.StaticText( self.m_panel8, wx.ID_ANY, u"mils", wx.DefaultPosition, wx.DefaultSize, 0, u"dtoe_units" )
+		self.m_staticText11211.Wrap( -1 )
+		gbSizer1.Add( self.m_staticText11211, wx.GBPosition( 2, 2 ), wx.GBSpan( 1, 1 ), wx.ALIGN_LEFT|wx.ALL, 5 )
+		
+		self.m_staticText232 = wx.StaticText( self.m_panel8, wx.ID_ANY, u"Drill Size Minimum", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText232.Wrap( -1 )
+		gbSizer1.Add( self.m_staticText232, wx.GBPosition( 3, 0 ), wx.GBSpan( 1, 1 ), wx.ALL, 5 )
+		
+		self.m_staticText2321 = wx.StaticText( self.m_panel8, wx.ID_ANY, u"Drill Size Maximum", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText2321.Wrap( -1 )
+		gbSizer1.Add( self.m_staticText2321, wx.GBPosition( 4, 0 ), wx.GBSpan( 1, 1 ), wx.ALL, 5 )
+		
+		self.m_textCtrl101 = wx.TextCtrl( self.m_panel8, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"drillmin" )
+		gbSizer1.Add( self.m_textCtrl101, wx.GBPosition( 3, 1 ), wx.GBSpan( 1, 1 ), wx.ALIGN_RIGHT|wx.ALL, 5 )
+		
+		self.m_textCtrl1011 = wx.TextCtrl( self.m_panel8, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"drillmax" )
+		gbSizer1.Add( self.m_textCtrl1011, wx.GBPosition( 4, 1 ), wx.GBSpan( 1, 1 ), wx.ALIGN_RIGHT|wx.ALL|wx.EXPAND, 5 )
+		
+		self.m_staticText28 = wx.StaticText( self.m_panel8, wx.ID_ANY, u"mils", wx.DefaultPosition, wx.DefaultSize, 0, u"drillmax_units" )
+		self.m_staticText28.Wrap( -1 )
+		gbSizer1.Add( self.m_staticText28, wx.GBPosition( 4, 2 ), wx.GBSpan( 1, 1 ), wx.ALL, 5 )
+		
+		self.m_staticText291 = wx.StaticText( self.m_panel8, wx.ID_ANY, u"Drill Set", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText291.Wrap( -1 )
+		gbSizer1.Add( self.m_staticText291, wx.GBPosition( 5, 0 ), wx.GBSpan( 1, 1 ), wx.ALL, 5 )
+		
+		m_choice2Choices = []
+		self.m_choice2 = wx.Choice( self.m_panel8, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, m_choice2Choices, 0, wx.DefaultValidator, u"drillset" )
+		self.m_choice2.SetSelection( 0 )
+		gbSizer1.Add( self.m_choice2, wx.GBPosition( 5, 1 ), wx.GBSpan( 1, 3 ), wx.ALL|wx.EXPAND, 5 )
+		
+		self.m_staticText243 = wx.StaticText( self.m_panel8, wx.ID_ANY, u"mils", wx.DefaultPosition, wx.DefaultSize, 0, u"drillmin_units" )
+		self.m_staticText243.Wrap( -1 )
+		gbSizer1.Add( self.m_staticText243, wx.GBPosition( 3, 2 ), wx.GBSpan( 1, 1 ), wx.ALIGN_LEFT|wx.ALL, 5 )
+		
+		self.m_textCtrl21 = wx.TextCtrl( self.m_panel8, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"vv" )
+		gbSizer1.Add( self.m_textCtrl21, wx.GBPosition( 0, 1 ), wx.GBSpan( 1, 1 ), wx.ALIGN_RIGHT|wx.ALL, 5 )
+		
+		self.m_staticText1 = wx.StaticText( self.m_panel8, wx.ID_ANY, u"Via to Track spacing", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText1.Wrap( -1 )
+		gbSizer1.Add( self.m_staticText1, wx.GBPosition( 1, 0 ), wx.GBSpan( 1, 1 ), wx.ALL, 5 )
+		
+		self.m_textCtrl2 = wx.TextCtrl( self.m_panel8, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"vt" )
+		gbSizer1.Add( self.m_textCtrl2, wx.GBPosition( 1, 1 ), wx.GBSpan( 1, 1 ), wx.ALIGN_RIGHT|wx.ALL, 5 )
+		
+		self.m_staticText111 = wx.StaticText( self.m_panel8, wx.ID_ANY, u"Drill to Edge spacing", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText111.Wrap( -1 )
+		gbSizer1.Add( self.m_staticText111, wx.GBPosition( 2, 0 ), wx.GBSpan( 1, 1 ), wx.ALL, 5 )
+		
+		self.m_textCtrl211 = wx.TextCtrl( self.m_panel8, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.DefaultSize, 0, wx.DefaultValidator, u"dtoe" )
+		gbSizer1.Add( self.m_textCtrl211, wx.GBPosition( 2, 1 ), wx.GBSpan( 1, 1 ), wx.ALIGN_RIGHT|wx.ALL, 5 )
+		
+		
+		gbSizer1.AddGrowableCol( 3 )
+		
+		self.m_panel8.SetSizer( gbSizer1 )
+		self.m_panel8.Layout()
+		gbSizer1.Fit( self.m_panel8 )
+		self.m_notebook1.AddPage( self.m_panel8, u"Drill Parameters", False )
 		
 		bSizer2.Add( self.m_notebook1, 1, wx.EXPAND |wx.ALL, 5 )
 		
@@ -199,8 +236,8 @@ class kipadcheck_gui ( wx.Frame ):
 		# Connect Events
 		self.m_button1.Bind( wx.EVT_BUTTON, self.Pad )
 		self.m_button2.Bind( wx.EVT_BUTTON, self.Stencil )
-		self.m_button3.Bind( wx.EVT_BUTTON, self.Drill )
 		self.m_button4.Bind( wx.EVT_BUTTON, self.Silk )
+		self.m_button3.Bind( wx.EVT_BUTTON, self.Drill )
 	
 	def __del__( self ):
 		pass
@@ -213,10 +250,10 @@ class kipadcheck_gui ( wx.Frame ):
 	def Stencil( self, event ):
 		event.Skip()
 	
-	def Drill( self, event ):
+	def Silk( self, event ):
 		event.Skip()
 	
-	def Silk( self, event ):
+	def Drill( self, event ):
 		event.Skip()
 	
 
